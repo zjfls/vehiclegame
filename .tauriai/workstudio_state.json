@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "states": {
+    "code": {
+      "openFiles": [
+        "E:/work/pandavehicle/main.py",
+        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h"
+      ],
+      "panes": [
+        {
+          "id": "p-0",
+          "tabIds": [
+            "E:/work/pandavehicle/main.py",
+            "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h"
+          ],
+          "activeTabId": "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h",
+          "weight": 1.0
+        }
+      ],
+      "focusedPaneId": "p-0",
+      "groups": [],
+      "expandedDirs": [
+        "E:\\work\\pandavehicle\\.tauriai",
+        "E:\\work\\pandavehicle",
+        "E:/work/pandavehicle",
+        "G:\\UE4SOURCE\\ue4\\Engine\\Plugins\\Runtime\\PhysXVehicles",
+        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles",
+        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source",
+        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles",
+        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public"
+      ],
+      "splitOpen": false
+    }
+  }
+}
