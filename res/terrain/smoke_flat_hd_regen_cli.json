@@ -1,0 +1,36 @@
+{
+  "name": "smoke_flat_hd_regen_cli",
+  "shape": [
+    1024,
+    1024
+  ],
+  "seed": 42,
+  "generator": "opensimplex",
+  "params": {
+    "octaves": 5,
+    "base_frequency": 0.001,
+    "persistence": 0.5,
+    "lacunarity": 2.0,
+    "smooth_sigma": 10.0,
+    "relief_strength": 0.25
+  },
+  "track_flatten": {
+    "enabled": true,
+    "track_csv": "scripts/track_example.csv",
+    "coord_space": "normalized",
+    "corridor_width_px": 240.0,
+    "edge_falloff_px": 120.0,
+    "strength": 0.9
+  },
+  "stats": {
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.49643437105175836,
+    "std": 0.22974360549389156
+  },
+  "artifacts": {
+    "npy": "res/terrain/smoke_flat_hd_regen_cli.npy",
+    "pgm16": "res/terrain/smoke_flat_hd_regen_cli.pgm",
+    "report": "res/terrain/smoke_flat_hd_regen_cli.json"
+  }
+}

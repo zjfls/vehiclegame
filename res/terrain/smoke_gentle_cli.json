@@ -1,0 +1,36 @@
+{
+  "name": "smoke_gentle_cli",
+  "shape": [
+    256,
+    256
+  ],
+  "seed": 42,
+  "generator": "opensimplex",
+  "params": {
+    "octaves": 5,
+    "base_frequency": 0.006,
+    "persistence": 0.5,
+    "lacunarity": 2.0,
+    "smooth_sigma": 2.0,
+    "relief_strength": 0.25
+  },
+  "track_flatten": {
+    "enabled": true,
+    "track_csv": "scripts/track_example.csv",
+    "coord_space": "normalized",
+    "corridor_width_px": 60.0,
+    "edge_falloff_px": 30.0,
+    "strength": 0.9
+  },
+  "stats": {
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.5012549859270714,
+    "std": 0.18468813130631326
+  },
+  "artifacts": {
+    "npy": "res/terrain/smoke_gentle_cli.npy",
+    "pgm16": "res/terrain/smoke_gentle_cli.pgm",
+    "report": "res/terrain/smoke_gentle_cli.json"
+  }
+}

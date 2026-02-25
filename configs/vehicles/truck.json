@@ -1,0 +1,222 @@
+{
+  "name": "Truck",
+  "position": [
+    0,
+    0,
+    12.0
+  ],
+  "heading": 0,
+  "vehicle_mass": 3500.0,
+  "physics": {
+    "max_speed": 120.0,
+    "drag_coefficient": 0.6,
+    "acceleration": 30.0,
+    "deceleration": 25.0,
+    "brake_deceleration": 80.0,
+    "turn_speed": 120.0,
+    "max_steering_angle": 35.0,
+    "input_smoothing": {
+      "throttle_rise": 5.0,
+      "throttle_fall": 8.0,
+      "brake_rise": 10.0,
+      "brake_fall": 15.0,
+      "steering_rise": 2.0,
+      "steering_fall": 4.0
+    }
+  },
+  "suspension": {
+    "com_position": [
+      0,
+      0,
+      0.5
+    ],
+    "wheels": [
+      {
+        "position": [
+          -1.0,
+          1.8,
+          -0.4
+        ],
+        "natural_frequency": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length": 0.4,
+        "max_compression": 0.15,
+        "max_droop": 0.15
+      },
+      {
+        "position": [
+          1.0,
+          1.8,
+          -0.4
+        ],
+        "natural_frequency": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length": 0.4,
+        "max_compression": 0.15,
+        "max_droop": 0.15
+      },
+      {
+        "position": [
+          -1.0,
+          -1.8,
+          -0.4
+        ],
+        "natural_frequency": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length": 0.4,
+        "max_compression": 0.15,
+        "max_droop": 0.15
+      },
+      {
+        "position": [
+          1.0,
+          -1.8,
+          -0.4
+        ],
+        "natural_frequency": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length": 0.4,
+        "max_compression": 0.15,
+        "max_droop": 0.15
+      }
+    ]
+  },
+  "tires": [
+    {
+      "lat_stiff_max_load": 3.0,
+      "lat_stiff_value": 15.0,
+      "long_stiff_value": 800.0,
+      "friction": 0.9
+    },
+    {
+      "lat_stiff_max_load": 3.0,
+      "lat_stiff_value": 15.0,
+      "long_stiff_value": 800.0,
+      "friction": 0.9
+    },
+    {
+      "lat_stiff_max_load": 3.0,
+      "lat_stiff_value": 15.0,
+      "long_stiff_value": 1000.0,
+      "friction": 1.0
+    },
+    {
+      "lat_stiff_max_load": 3.0,
+      "lat_stiff_value": 15.0,
+      "long_stiff_value": 1000.0,
+      "friction": 1.0
+    }
+  ],
+  "transmission": {
+    "engine": {
+      "moi": 2.0,
+      "max_rpm": 4500.0,
+      "torque_curve": [
+        [
+          0,
+          500
+        ],
+        [
+          1000,
+          800
+        ],
+        [
+          2000,
+          900
+        ],
+        [
+          3000,
+          850
+        ],
+        [
+          4000,
+          600
+        ],
+        [
+          4500,
+          0
+        ]
+      ],
+      "damping_full_throttle": 0.2,
+      "damping_zero_throttle_clutch_engaged": 3.0,
+      "damping_zero_throttle_clutch_disengaged": 0.5
+    },
+    "gear_ratios": [
+      0,
+      4.5,
+      3.0,
+      2.0,
+      1.5,
+      1.0,
+      0.7
+    ],
+    "final_ratio": 4.0,
+    "reverse_ratio": -4.0,
+    "auto_shift": true,
+    "shift_time": 0.5,
+    "clutch_strength": 15.0,
+    "differential": {
+      "diff_type": "open",
+      "front_rear_split": 0.5,
+      "front_bias": 1.0,
+      "rear_bias": 1.0
+    }
+  },
+  "pose": {
+    "track_width": 2.0,
+    "wheelbase": 3.5,
+    "cg_height": 0.8,
+    "max_roll": 8.0,
+    "max_pitch": 6.0,
+    "roll_stiffness": 15000.0,
+    "pitch_stiffness": 15000.0,
+    "bounce_stiffness": 25000.0,
+    "roll_damping": 800.0,
+    "pitch_damping": 800.0,
+    "bounce_damping": 1200.0,
+    "front_anti_roll": 1800.0,
+    "rear_anti_roll": 1500.0
+  },
+  "wheels": [
+    {
+      "position": [
+        -1.0,
+        1.8,
+        -0.4
+      ],
+      "radius": 0.45,
+      "can_steer": true,
+      "is_driven": true
+    },
+    {
+      "position": [
+        1.0,
+        1.8,
+        -0.4
+      ],
+      "radius": 0.45,
+      "can_steer": true,
+      "is_driven": true
+    },
+    {
+      "position": [
+        -1.0,
+        -1.8,
+        -0.4
+      ],
+      "radius": 0.45,
+      "can_steer": false,
+      "is_driven": true
+    },
+    {
+      "position": [
+        1.0,
+        -1.8,
+        -0.4
+      ],
+      "radius": 0.45,
+      "can_steer": false,
+      "is_driven": true
+    }
+  ]
+}
