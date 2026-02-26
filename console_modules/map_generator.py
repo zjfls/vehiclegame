@@ -126,7 +126,9 @@ class MapGeneratorModule(ConsoleModule):
         self.log_text.setFont(QtGui.QFont("Consolas", 9))
         log_layout.addWidget(self.log_text)
         
-        # 底部状态栏
+        layout.addWidget(log_group)
+        
+        # 底部状态栏（与日志区域并列，不在其内部）
         bottom_layout = QtWidgets.QHBoxLayout()
         
         self.status_label = QtWidgets.QLabel("● 就绪")
@@ -158,9 +160,7 @@ class MapGeneratorModule(ConsoleModule):
         bottom_layout.addWidget(self.stop_button)
         
         bottom_layout.addStretch(1)
-        log_layout.addLayout(bottom_layout)
-        
-        layout.addWidget(log_group)
+        layout.addLayout(bottom_layout)
         
         # 初始化默认配置
         self._load_config_list()
