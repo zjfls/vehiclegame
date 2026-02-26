@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from console_modules.base_module import ConsoleModule
 from core.map_config_manager import MapConfigManager, MapConfig, MapModuleConfig
