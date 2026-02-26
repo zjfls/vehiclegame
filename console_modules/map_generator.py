@@ -827,8 +827,32 @@ class MapGeneratorModule(ConsoleModule):
     
     def _run_async(self, coro):
         """运行异步任务"""
-        loop = asyncio.get_event_loop()
-        self._current_task = loop.create_task(coro)
+        # 兼容 Python 3.14+：使用 get_running_loop() 或创建新 loop
+        try:
+            loop = asyncio.get_running_loop()
+            # 如果在运行中的事件循环里（不可能，因为这是同步调用）
+            self._current_task = loop.create_task(coro)
+        except RuntimeError:
+            # 没有运行中的循环，使用 console_app 的主循环
+            if hasattr(self.console_app, 'async_loop') and self.console_app.async_loop:
+                self._current_task = asyncio.run_coroutine_threadsafe(
+                    coro, self.console_app.async_loop
+                )
+            else:
+                # 后备方案：创建新线程运行 loop
+                import threading
+                def run_loop():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    new_loop.run_forever()
+                
+                thread = threading.Thread(target=run_loop, daemon=True)
+                thread.start()
+                self.console_app.async_loop = new_loop if 'new_loop' in locals() else None
+                if self.console_app.async_loop:
+                    self._current_task = asyncio.run_coroutine_threadsafe(
+                        coro, self.console_app.async_loop
+                    )
     
     def cleanup(self):
         """清理"""
