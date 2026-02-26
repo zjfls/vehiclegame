@@ -53,6 +53,8 @@ class MapGeneratorModule(ConsoleModule):
         
         # 配置输入控件
         self.config_inputs: Dict[str, Dict[str, QtWidgets.QWidget]] = {}
+        self.config_widgets: Dict[str, QtWidgets.QWidget] = {}
+        self.toggle_buttons: Dict[str, QtWidgets.QPushButton] = {}
         
         # 日志
         self.log_text: Optional[QtWidgets.QTextEdit] = None
@@ -226,9 +228,23 @@ class MapGeneratorModule(ConsoleModule):
             dep_label.setStyleSheet("color: #888888; font-size: 11px;")
             group_layout.addWidget(dep_label)
         
+        # 折叠/展开按钮
+        toggle_btn = QtWidgets.QPushButton("📋 展开配置 ▼")
+        toggle_btn.setCheckable(True)
+        toggle_btn.setStyleSheet("background-color: #2d2d2d; color: #a0a0a0; padding: 6px 12px; border-radius: 4px; font-size: 11px;")
+        toggle_btn.toggled.connect(lambda checked, mid=module_id: self._on_toggle_inputs(mid, checked))
+        group_layout.addWidget(toggle_btn)
+        self.toggle_buttons[module_id] = toggle_btn
+        
         # 配置输入区域（折叠）
         config_widget = self._create_module_inputs(module_id)
         group_layout.addWidget(config_widget)
+        
+        # 分隔线
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        line.setStyleSheet("color: #333333;")
+        group_layout.addWidget(line)
         
         # 按钮行
         button_layout = QtWidgets.QHBoxLayout()
@@ -261,42 +277,80 @@ class MapGeneratorModule(ConsoleModule):
         inputs = {}
         
         if module_id == "1_terrain":
-            # 宽度
+            # 第 0 行：宽度和高度
             layout.addWidget(QtWidgets.QLabel("宽度:"), 0, 0)
             width_edit = QtWidgets.QLineEdit("1024")
             width_edit.setToolTip("高度图宽度（像素）")
+            width_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(width_edit, 0, 1)
             inputs['width'] = width_edit
             
-            # 高度
             layout.addWidget(QtWidgets.QLabel("高度:"), 0, 2)
             height_edit = QtWidgets.QLineEdit("1024")
+            height_edit.setToolTip("高度图高度（像素）")
+            height_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(height_edit, 0, 3)
             inputs['height'] = height_edit
             
-            # 种子
+            # 第 1 行：种子和输出名称
             layout.addWidget(QtWidgets.QLabel("种子:"), 1, 0)
             seed_edit = QtWidgets.QLineEdit("42")
+            seed_edit.setToolTip("随机种子（相同种子生成相同地形）")
+            seed_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(seed_edit, 1, 1)
             inputs['seed'] = seed_edit
             
-            # 输出名称
             layout.addWidget(QtWidgets.QLabel("输出名称:"), 1, 2)
             output_edit = QtWidgets.QLineEdit("race_base")
+            output_edit.setToolTip("输出文件前缀")
+            output_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(output_edit, 1, 3)
             inputs['output'] = output_edit
             
-            # 基础频率
+            # 第 2 行：基础频率和 Octaves
             layout.addWidget(QtWidgets.QLabel("基础频率:"), 2, 0)
             freq_edit = QtWidgets.QLineEdit("0.003")
+            freq_edit.setToolTip("噪声基础频率（越大细节越密）")
+            freq_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(freq_edit, 2, 1)
             inputs['base_frequency'] = freq_edit
             
-            # Octaves
             layout.addWidget(QtWidgets.QLabel("Octaves:"), 2, 2)
             octaves_edit = QtWidgets.QLineEdit("5")
+            octaves_edit.setToolTip("噪声层数（更高更细节）")
+            octaves_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(octaves_edit, 2, 3)
             inputs['octaves'] = octaves_edit
+            
+            # 第 3 行：Persistence 和 Lacunarity
+            layout.addWidget(QtWidgets.QLabel("Persistence:"), 3, 0)
+            pers_edit = QtWidgets.QLineEdit("0.5")
+            pers_edit.setToolTip("每层幅度衰减系数（0..1）")
+            pers_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
+            layout.addWidget(pers_edit, 3, 1)
+            inputs['persistence'] = pers_edit
+            
+            layout.addWidget(QtWidgets.QLabel("Lacunarity:"), 3, 2)
+            lac_edit = QtWidgets.QLineEdit("2.0")
+            lac_edit.setToolTip("每层频率增长系数")
+            lac_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
+            layout.addWidget(lac_edit, 3, 3)
+            inputs['lacunarity'] = lac_edit
+            
+            # 第 4 行：平滑和起伏
+            layout.addWidget(QtWidgets.QLabel("平滑 σ:"), 4, 0)
+            smooth_edit = QtWidgets.QLineEdit("2.5")
+            smooth_edit.setToolTip("高斯平滑强度（越大越平滑）")
+            smooth_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
+            layout.addWidget(smooth_edit, 4, 1)
+            inputs['smooth_sigma'] = smooth_edit
+            
+            layout.addWidget(QtWidgets.QLabel("起伏强度:"), 4, 2)
+            relief_edit = QtWidgets.QLineEdit("0.25")
+            relief_edit.setToolTip("全局起伏强度（0..1，越小越平坦）")
+            relief_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
+            layout.addWidget(relief_edit, 4, 3)
+            inputs['relief_strength'] = relief_edit
         
         elif module_id == "2_colors":
             layout.addWidget(QtWidgets.QLabel("模式:"), 0, 0)
@@ -339,14 +393,10 @@ class MapGeneratorModule(ConsoleModule):
             inputs['rocks_count'] = rocks_edit
         
         widget.setVisible(False)  # 默认折叠
+        widget.setStyleSheet("background-color: #1a1a1a; padding: 10px; border-radius: 6px;")
         self.config_inputs[module_id] = inputs
+        self.config_widgets[module_id] = widget
         
-        # 添加折叠/展开功能
-        toggle_btn = QtWidgets.QPushButton("📋 展开配置 ▼")
-        toggle_btn.setCheckable(True)
-        toggle_btn.toggled.connect(lambda checked: widget.setVisible(checked))
-        
-        # 在创建模块时插入到 group 的顶部
         return widget
     
     def _load_config_list(self):
@@ -374,21 +424,46 @@ class MapGeneratorModule(ConsoleModule):
         if not self.current_config:
             return
         
+        # 辅助方法：安全设置 QLineEdit 的值
+        def set_line_edit(inputs_dict, key, value, default=""):
+            widget = inputs_dict.get(key)
+            if widget and isinstance(widget, QtWidgets.QLineEdit):
+                widget.setText(str(value) if value is not None else default)
+        
         # 填充各模块的输入控件
         for module_id, module in self.current_config.modules.items():
             inputs = self.config_inputs.get(module_id, {})
             data = module.data
             
-            # 地形
             if module_id == "1_terrain":
-                inputs.get('width', QtWidgets.QLineEdit()).setText(str(data.get('width', 1024)))
-                inputs.get('height', QtWidgets.QLineEdit()).setText(str(data.get('height', 1024)))
-                inputs.get('seed', QtWidgets.QLineEdit()).setText(str(data.get('seed', 42)))
-                inputs.get('output', QtWidgets.QLineEdit()).setText(data.get('output', 'race_base'))
+                # 基础参数
+                set_line_edit(inputs, 'width', data.get('width', 1024))
+                set_line_edit(inputs, 'height', data.get('height', 1024))
+                set_line_edit(inputs, 'seed', data.get('seed', 42))
+                set_line_edit(inputs, 'output', data.get('output', 'race_base'))
                 
+                # 噪声参数
                 noise = data.get('noise', {})
-                inputs.get('base_frequency', QtWidgets.QLineEdit()).setText(str(noise.get('base_frequency', 0.003)))
-                inputs.get('octaves', QtWidgets.QLineEdit()).setText(str(noise.get('octaves', 5)))
+                set_line_edit(inputs, 'base_frequency', noise.get('base_frequency', 0.003))
+                set_line_edit(inputs, 'octaves', noise.get('octaves', 5))
+                set_line_edit(inputs, 'persistence', noise.get('persistence', 0.5))
+                set_line_edit(inputs, 'lacunarity', noise.get('lacunarity', 2.0))
+                
+                # 雕刻参数
+                sculpt = data.get('sculpt', {})
+                set_line_edit(inputs, 'smooth_sigma', sculpt.get('smooth_sigma', 2.5))
+                set_line_edit(inputs, 'relief_strength', sculpt.get('relief_strength', 0.25))
+            
+            elif module_id == "3_track":
+                set_line_edit(inputs, 'csv_path', data.get('csv_path', 'configs/tracks/default_track.csv'))
+                geom = data.get('geometry', {})
+                set_line_edit(inputs, 'track_width', geom.get('track_width', 9.0))
+            
+            elif module_id == "4_scenery":
+                trees = data.get('trees', {})
+                set_line_edit(inputs, 'trees_count', trees.get('count', 30))
+                rocks = data.get('rocks', {})
+                set_line_edit(inputs, 'rocks_count', rocks.get('count', 40))
             
             # 更新状态
             self._update_module_status(module_id, module.status)
@@ -476,16 +551,95 @@ class MapGeneratorModule(ConsoleModule):
         config = {}
         
         if module_id == "1_terrain":
+            def get_int(key, default):
+                widget = inputs.get(key)
+                if widget and isinstance(widget, QtWidgets.QLineEdit):
+                    try:
+                        return int(widget.text())
+                    except:
+                        return default
+                return default
+            
+            def get_float(key, default):
+                widget = inputs.get(key)
+                if widget and isinstance(widget, QtWidgets.QLineEdit):
+                    try:
+                        return float(widget.text())
+                    except:
+                        return default
+                return default
+            
+            def get_text(key, default):
+                widget = inputs.get(key)
+                if widget and isinstance(widget, QtWidgets.QLineEdit):
+                    return widget.text() or default
+                return default
+            
             config = {
-                'width': int(inputs.get('width', QtWidgets.QLineEdit()).text() or 1024),
-                'height': int(inputs.get('height', QtWidgets.QLineEdit()).text() or 1024),
-                'seed': int(inputs.get('seed', QtWidgets.QLineEdit()).text() or 42),
-                'output': inputs.get('output', QtWidgets.QLineEdit()).text() or 'race_base',
+                'width': get_int('width', 1024),
+                'height': get_int('height', 1024),
+                'seed': get_int('seed', 42),
+                'output': get_text('output', 'race_base'),
                 'noise': {
-                    'base_frequency': float(inputs.get('base_frequency', QtWidgets.QLineEdit()).text() or 0.003),
-                    'octaves': int(inputs.get('octaves', QtWidgets.QLineEdit()).text() or 5)
+                    'base_frequency': get_float('base_frequency', 0.003),
+                    'octaves': get_int('octaves', 5),
+                    'persistence': get_float('persistence', 0.5),
+                    'lacunarity': get_float('lacunarity', 2.0)
                 },
-                'sculpt': {}
+                'sculpt': {
+                    'smooth_sigma': get_float('smooth_sigma', 2.5),
+                    'relief_strength': get_float('relief_strength', 0.25)
+                }
+            }
+        
+        elif module_id == "2_colors":
+            config = {
+                'mode': 'procedural',
+                'procedural': {}
+            }
+        
+        elif module_id == "3_track":
+            csv_widget = inputs.get('csv_path')
+            csv_path = csv_widget.text() if csv_widget else 'configs/tracks/default_track.csv'
+            
+            width_widget = inputs.get('track_width')
+            track_width = 9.0
+            if width_widget and isinstance(width_widget, QtWidgets.QLineEdit):
+                try:
+                    track_width = float(width_widget.text())
+                except:
+                    pass
+            
+            config = {
+                'csv_path': csv_path,
+                'coord_space': 'normalized',
+                'geometry': {
+                    'track_width': track_width,
+                    'border_width': 0.8,
+                    'samples_per_segment': 8
+                }
+            }
+        
+        elif module_id == "4_scenery":
+            trees_widget = inputs.get('trees_count')
+            trees_count = 30
+            if trees_widget and isinstance(trees_widget, QtWidgets.QLineEdit):
+                try:
+                    trees_count = int(trees_widget.text())
+                except:
+                    pass
+            
+            rocks_widget = inputs.get('rocks_count')
+            rocks_count = 40
+            if rocks_widget and isinstance(rocks_widget, QtWidgets.QLineEdit):
+                try:
+                    rocks_count = int(rocks_widget.text())
+                except:
+                    pass
+            
+            config = {
+                'trees': {'count': trees_count, 'enabled': True},
+                'rocks': {'count': rocks_count, 'enabled': True}
             }
         
         return config
@@ -553,6 +707,28 @@ class MapGeneratorModule(ConsoleModule):
             self._log("⏹️ 用户停止生成", "warning")
             self.generate_all_button.setEnabled(True)
             self.stop_button.setEnabled(False)
+    
+    def _on_toggle_inputs(self, module_id: str, expanded: bool):
+        """切换配置输入区域的展开/折叠状态"""
+        widget = self.config_widgets.get(module_id)
+        toggle_btn = self.toggle_buttons.get(module_id)
+        
+        if widget:
+            widget.setVisible(expanded)
+        
+        if toggle_btn:
+            if expanded:
+                toggle_btn.setText("📋 收起配置 ▲")
+                toggle_btn.setStyleSheet(
+                    "background-color: #1f6aa5; color: white; padding: 6px 12px; "
+                    "border-radius: 4px; font-size: 11px;"
+                )
+            else:
+                toggle_btn.setText("📋 展开配置 ▼")
+                toggle_btn.setStyleSheet(
+                    "background-color: #2d2d2d; color: #a0a0a0; padding: 6px 12px; "
+                    "border-radius: 4px; font-size: 11px;"
+                )
     
     def _on_config_selected(self, name: str):
         """配置选择"""
