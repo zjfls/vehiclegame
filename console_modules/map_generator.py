@@ -280,14 +280,25 @@ class MapGeneratorModule(ConsoleModule):
             # 第 0 行：宽度和高度
             layout.addWidget(QtWidgets.QLabel("宽度:"), 0, 0)
             width_edit = QtWidgets.QLineEdit("1024")
-            width_edit.setToolTip("高度图宽度（像素）")
+            width_edit.setToolTip(
+                "高度图宽度（像素）\n\n"
+                "• 推荐值：512, 1024, 2048\n"
+                "• 越大分辨率越高，地形细节越丰富\n"
+                "• 生成时间和内存占用也会增加\n"
+                "• 建议从 1024 开始测试"
+            )
             width_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(width_edit, 0, 1)
             inputs['width'] = width_edit
             
             layout.addWidget(QtWidgets.QLabel("高度:"), 0, 2)
             height_edit = QtWidgets.QLineEdit("1024")
-            height_edit.setToolTip("高度图高度（像素）")
+            height_edit.setToolTip(
+                "高度图高度（像素）\n\n"
+                "• 通常与宽度相同，保持正方形\n"
+                "• 越大分辨率越高，细节越丰富\n"
+                "• 建议与宽度保持一致"
+            )
             height_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(height_edit, 0, 3)
             inputs['height'] = height_edit
@@ -295,14 +306,26 @@ class MapGeneratorModule(ConsoleModule):
             # 第 1 行：种子和输出名称
             layout.addWidget(QtWidgets.QLabel("种子:"), 1, 0)
             seed_edit = QtWidgets.QLineEdit("42")
-            seed_edit.setToolTip("随机种子（相同种子生成相同地形）")
+            seed_edit.setToolTip(
+                "随机种子（整数）\n\n"
+                "• 相同种子 + 相同参数 = 相同地形\n"
+                "• 改变种子会生成完全不同的地形\n"
+                "• 发现喜欢的地形？记住种子值！\n"
+                "• 示例：42, 12345, 2024"
+            )
             seed_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(seed_edit, 1, 1)
             inputs['seed'] = seed_edit
             
             layout.addWidget(QtWidgets.QLabel("输出名称:"), 1, 2)
             output_edit = QtWidgets.QLineEdit("race_base")
-            output_edit.setToolTip("输出文件前缀")
+            output_edit.setToolTip(
+                "输出文件前缀名\n\n"
+                "• 生成文件：res/terrain/{名称}.npy/.pgm/.json\n"
+                "• 使用英文、数字和下划线\n"
+                "• 避免特殊字符和空格\n"
+                "• 示例：race_base, mountain_01, track_alpha"
+            )
             output_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(output_edit, 1, 3)
             inputs['output'] = output_edit
@@ -310,14 +333,28 @@ class MapGeneratorModule(ConsoleModule):
             # 第 2 行：基础频率和 Octaves
             layout.addWidget(QtWidgets.QLabel("基础频率:"), 2, 0)
             freq_edit = QtWidgets.QLineEdit("0.003")
-            freq_edit.setToolTip("噪声基础频率（越大细节越密）")
+            freq_edit.setToolTip(
+                "噪声基础频率（base_frequency）\n\n"
+                "• 控制地形宏观特征的尺度\n"
+                "• 越大：细节越密集，地形更破碎\n"
+                "• 越小：地形变化更平缓，山脉更大\n"
+                "• 推荐范围：0.001 - 0.01\n"
+                "• 默认 0.003 适合中等规模地形"
+            )
             freq_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(freq_edit, 2, 1)
             inputs['base_frequency'] = freq_edit
             
             layout.addWidget(QtWidgets.QLabel("Octaves:"), 2, 2)
             octaves_edit = QtWidgets.QLineEdit("5")
-            octaves_edit.setToolTip("噪声层数（更高更细节）")
+            octaves_edit.setToolTip(
+                "噪声叠加层数（Octaves）\n\n"
+                "• 每层叠加更细的细节\n"
+                "• 越高：地形细节越丰富，越真实\n"
+                "• 越低：地形更平滑，但可能单调\n"
+                "• 推荐范围：3-8\n"
+                "• 默认 5 层平衡质量和性能"
+            )
             octaves_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(octaves_edit, 2, 3)
             inputs['octaves'] = octaves_edit
@@ -325,14 +362,28 @@ class MapGeneratorModule(ConsoleModule):
             # 第 3 行：Persistence 和 Lacunarity
             layout.addWidget(QtWidgets.QLabel("Persistence:"), 3, 0)
             pers_edit = QtWidgets.QLineEdit("0.5")
-            pers_edit.setToolTip("每层幅度衰减系数（0..1）")
+            pers_edit.setToolTip(
+                "持久性系数（Persistence, 0..1）\n\n"
+                "• 控制每层噪声的幅度衰减\n"
+                "• 越大（接近 1）：细节层更明显，地形更粗糙\n"
+                "• 越小（接近 0）：细节层更弱，地形更平滑\n"
+                "• 推荐范围：0.3 - 0.7\n"
+                "• 默认 0.5 是经典值"
+            )
             pers_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(pers_edit, 3, 1)
             inputs['persistence'] = pers_edit
             
             layout.addWidget(QtWidgets.QLabel("Lacunarity:"), 3, 2)
             lac_edit = QtWidgets.QLineEdit("2.0")
-            lac_edit.setToolTip("每层频率增长系数")
+            lac_edit.setToolTip(
+                " lacunarity（频率增长系数）\n\n"
+                "• 控制每层噪声频率的增长速度\n"
+                "• 越大：细节层频率增长快，纹理更密\n"
+                "• 越小：细节层频率增长慢，纹理更疏\n"
+                "• 推荐范围：1.5 - 3.0\n"
+                "• 默认 2.0 是经典倍频程"
+            )
             lac_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(lac_edit, 3, 3)
             inputs['lacunarity'] = lac_edit
@@ -340,14 +391,30 @@ class MapGeneratorModule(ConsoleModule):
             # 第 4 行：平滑和起伏
             layout.addWidget(QtWidgets.QLabel("平滑 σ:"), 4, 0)
             smooth_edit = QtWidgets.QLineEdit("2.5")
-            smooth_edit.setToolTip("高斯平滑强度（越大越平滑）")
+            smooth_edit.setToolTip(
+                "高斯平滑强度（Smooth Sigma）\n\n"
+                "• 对生成后的高度图进行高斯模糊\n"
+                "• 越大：地形越平滑，山峰更圆润\n"
+                "• 越小：保留更多原始噪声细节\n"
+                "• 0 = 不平滑\n"
+                "• 推荐范围：1.0 - 5.0\n"
+                "• 默认 2.5 适度平滑"
+            )
             smooth_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(smooth_edit, 4, 1)
             inputs['smooth_sigma'] = smooth_edit
             
             layout.addWidget(QtWidgets.QLabel("起伏强度:"), 4, 2)
             relief_edit = QtWidgets.QLineEdit("0.25")
-            relief_edit.setToolTip("全局起伏强度（0..1，越小越平坦）")
+            relief_edit.setToolTip(
+                "全局起伏强度（Relief Strength, 0..1）\n\n"
+                "• 控制整体高度变化的幅度\n"
+                "• 越大：地形起伏更剧烈，山峰更高\n"
+                "• 越小：地形更平坦，适合赛道\n"
+                "• 0 = 完全平坦\n"
+                "• 1 = 最大起伏\n"
+                "• 默认 0.25 适合赛车地形"
+            )
             relief_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(relief_edit, 4, 3)
             inputs['relief_strength'] = relief_edit
@@ -369,26 +436,63 @@ class MapGeneratorModule(ConsoleModule):
         elif module_id == "3_track":
             layout.addWidget(QtWidgets.QLabel("CSV 路径:"), 0, 0)
             csv_edit = QtWidgets.QLineEdit("configs/tracks/default_track.csv")
+            csv_edit.setToolTip(
+                "赛道中心线 CSV 文件路径\n\n"
+                "• 格式：每行 x,y 坐标（归一化 0-1 或世界坐标）\n"
+                "• 至少需要 2 个点形成赛道\n"
+                "• 第一个点通常是发车位置\n"
+                "• 点击 '浏览...' 选择文件\n"
+                "• 留空则使用默认椭圆赛道"
+            )
+            csv_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(csv_edit, 0, 1, 1, 2)
             inputs['csv_path'] = csv_edit
             
             browse_btn = QtWidgets.QPushButton("浏览...")
+            browse_btn.setToolTip("选择赛道 CSV 文件")
             browse_btn.clicked.connect(lambda: self._browse_file(csv_edit))
             layout.addWidget(browse_btn, 0, 3)
             
             layout.addWidget(QtWidgets.QLabel("赛道宽度:"), 1, 0)
             width_edit = QtWidgets.QLineEdit("9.0")
+            width_edit.setToolTip(
+                "赛道表面宽度（世界单位：米）\n\n"
+                "• 控制赛道的横向范围\n"
+                "• 越大：赛道越宽，更容易驾驶\n"
+                "• 越小：赛道越窄，更具挑战性\n"
+                "• 推荐范围：6.0 - 15.0\n"
+                "• 默认 9.0 适合标准赛道"
+            )
+            width_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(width_edit, 1, 1)
             inputs['track_width'] = width_edit
         
         elif module_id == "4_scenery":
             layout.addWidget(QtWidgets.QLabel("树木数量:"), 0, 0)
             trees_edit = QtWidgets.QLineEdit("30")
+            trees_edit.setToolTip(
+                "树木生成数量\n\n"
+                "• 在赛道周围随机分布\n"
+                "• 越多：场景更丰富，但影响性能\n"
+                "• 越少：性能更好，但场景单调\n"
+                "• 推荐范围：20-100\n"
+                "• 默认 30 平衡效果和性能"
+            )
+            trees_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(trees_edit, 0, 1)
             inputs['trees_count'] = trees_edit
             
             layout.addWidget(QtWidgets.QLabel("岩石数量:"), 0, 2)
             rocks_edit = QtWidgets.QLineEdit("40")
+            rocks_edit.setToolTip(
+                "岩石生成数量\n\n"
+                "• 在赛道周围和山坡随机分布\n"
+                "• 越多：场景更自然，但可能阻碍赛道\n"
+                "• 越少：赛道更干净，驾驶更安全\n"
+                "• 推荐范围：20-80\n"
+                "• 默认 40 适度点缀"
+            )
+            rocks_edit.setStyleSheet("background-color: #2d2d2d; color: white;")
             layout.addWidget(rocks_edit, 0, 3)
             inputs['rocks_count'] = rocks_edit
         
