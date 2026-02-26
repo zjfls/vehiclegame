@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "terrain_base": "race_base",
+  "generated_at": 35670.180911041,
+  "trees": {
+    "enabled": true,
+    "count": 30,
+    "min_radius": 40,
+    "max_radius": 95,
+    "exclude_center": {
+      "width": 18,
+      "length": 100
+    },
+    "model": "tree_pine",
+    "scale_range": [
+      0.8,
+      1.5
+    ]
+  },
+  "rocks": {
+    "enabled": true,
+    "count": 40,
+    "min_radius": 30,
+    "max_radius": 90,
+    "size_range": [
+      1.5,
+      4.0
+    ],
+    "model": "rock_boulder"
+  },
+  "props": {
+    "enabled": false,
+    "custom_models": []
+  }
+}

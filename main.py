@@ -2,6 +2,10 @@
 Panda3D Racing Game - Main Entry Point
 With enhanced procedural terrain and shadows
 """
+import argparse
+import json
+from pathlib import Path
+
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from direct.gui.OnscreenText import OnscreenText
@@ -22,23 +26,45 @@ from src.systems.transmission_system import TransmissionSystem
 
 # Import terrain system
 from src.world.terrain_runtime import RuntimeTerrain, TerrainConfig
+from src.world.track_runtime import RuntimeTrack, TrackConfig
+
+PROJECT_ROOT = Path(__file__).resolve().parent
 
 class RacingGame(ShowBase):
     """Main game class with enhanced terrain and shadows"""
     
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        vehicle_config_id: str = "",
+        map_config_id: str = "",
+        resolution: str = "1280x720",
+        fullscreen: bool = False,
+        enable_shadows: bool = True,
+        debug: bool = False,
+    ):
         super().__init__()
 
         # Scale knob: increasing this makes the playable world larger.
         # For racing games, the default 200x200 terrain is too small.
         self.terrain_world_scale = 10.0
+
+        # CLI selections / flags
+        self.vehicle_config_id = (vehicle_config_id or "").strip()
+        self.map_config_id = (map_config_id or "").strip()
+        self.enable_shadows = bool(enable_shadows)
+        self.debug_mode = bool(debug)
+        self._selected_map = self._load_map_selection(self.map_config_id) if self.map_config_id else None
         
         # Window setup
         self.setBackgroundColor(0.4, 0.65, 0.85)
         
         # Setup display
         props = WindowProperties()
-        props.setSize(1280, 720)
+        w, h = self._parse_resolution(resolution, default=(1280, 720))
+        props.setSize(int(w), int(h))
+        if fullscreen:
+            props.setFullscreen(True)
         props.setTitle("Panda3D Racing Game - Enhanced Terrain")
         self.win.requestProperties(props)
         
@@ -52,7 +78,7 @@ class RacingGame(ShowBase):
         self.world = GameWorld()
         
         # Create vehicle configuration
-        self.vehicle_config = self._create_vehicle_config()
+        self.vehicle_config = self._load_vehicle_config(self.vehicle_config_id) or self._create_vehicle_config()
         
         # Create player vehicle
         self.player_vehicle = VehicleEntity("player", self.vehicle_config)
@@ -71,6 +97,7 @@ class RacingGame(ShowBase):
         # Setup scene
         self.setup_lights()
         self.setup_terrain()
+        self.setup_track()
         self.setup_environment()
         self.create_vehicle_visuals()
         self.setup_camera()
@@ -86,6 +113,10 @@ class RacingGame(ShowBase):
         print("Racing Game Initialized!")
         print("Controls: W/S - Throttle/Brake, A/D - Steering, ESC - Exit")
         print("Terrain: Enhanced with grass/dirt/rock/snow blending")
+        if self.map_config_id:
+            print(f"Map: {self.map_config_id}")
+        if self.vehicle_config_id:
+            print(f"Vehicle: {self.vehicle_config_id}")
     
     def _create_vehicle_config(self):
         """Create vehicle configuration"""
@@ -216,11 +247,12 @@ class RacingGame(ShowBase):
         
         # Setup shadow mapping
         # Use a higher-res shadow map for crisper vehicle shadows.
-        self.sun_light.setShadowCaster(True, 2048, 2048)
-        # Cover the whole terrain with the orthographic shadow camera.
-        shadow_scale = float(self.terrain_world_scale)
-        self.sun_light.getLens().setFilmSize(260 * shadow_scale, 260 * shadow_scale)
-        self.sun_light.getLens().setNearFar(10, 400 * shadow_scale)
+        if bool(getattr(self, "enable_shadows", True)):
+            self.sun_light.setShadowCaster(True, 2048, 2048)
+            # Cover the whole terrain with the orthographic shadow camera.
+            shadow_scale = float(self.terrain_world_scale)
+            self.sun_light.getLens().setFilmSize(260 * shadow_scale, 260 * shadow_scale)
+            self.sun_light.getLens().setNearFar(10, 400 * shadow_scale)
         
         # Fill light (warmer)
         fill_light = AmbientLight("fill_light")
@@ -238,14 +270,20 @@ class RacingGame(ShowBase):
         # Re-apply auto shader after lights are configured (ensures shadow variant).
         self.render.setShaderAuto()
         
-        print("Lighting: Multi-light setup with shadows enabled")
+        print(f"Lighting: Multi-light setup ({'shadows on' if self.enable_shadows else 'shadows off'})")
     
     def setup_terrain(self):
         """Setup enhanced procedural terrain"""
         # Create terrain with enhanced parameters
         scale = float(self.terrain_world_scale)
+        heightmap_path = "res/terrain/smoke_flat_hd_regen_cli.npy"
+        colors = None
+        selected = getattr(self, "_selected_map", None)
+        if isinstance(selected, dict):
+            heightmap_path = str(selected.get("heightmap_path") or heightmap_path)
+            colors = selected.get("colors")
         terrain_config = TerrainConfig(
-           heightmap_path="res/terrain/smoke_flat_hd_regen_cli.npy",
+            heightmap_path=heightmap_path,
             use_procedural_texture=True,
             # Make the terrain 10x larger without changing the heightmap.
             # This keeps sampling logic stable while enlarging the playable area.
@@ -273,6 +311,24 @@ class RacingGame(ShowBase):
             detail_lod_bias=-0.7,
             detail_anisotropy=16,
         )
+
+        # Apply map color overrides if available.
+        try:
+            if colors and isinstance(colors, dict):
+                proc = colors.get("procedural") if colors.get("mode") == "procedural" else None
+                if isinstance(proc, dict):
+                    if isinstance(proc.get("grass_color"), (list, tuple)) and len(proc["grass_color"]) >= 3:
+                        terrain_config.grass_color = tuple(proc["grass_color"][:3])
+                    if isinstance(proc.get("dirt_color"), (list, tuple)) and len(proc["dirt_color"]) >= 3:
+                        terrain_config.dirt_color = tuple(proc["dirt_color"][:3])
+                    if isinstance(proc.get("rock_color"), (list, tuple)) and len(proc["rock_color"]) >= 3:
+                        terrain_config.rock_color = tuple(proc["rock_color"][:3])
+                    if proc.get("height_rock_threshold") is not None:
+                        terrain_config.height_rock_threshold = float(proc.get("height_rock_threshold", terrain_config.height_rock_threshold))
+                    if proc.get("slope_rock_threshold") is not None:
+                        terrain_config.slope_rock_threshold = float(proc.get("slope_rock_threshold", terrain_config.slope_rock_threshold))
+        except Exception:
+            pass
         
         # Create terrain
         self.terrain = RuntimeTerrain(self.loader, terrain_config)
@@ -284,6 +340,62 @@ class RacingGame(ShowBase):
         self.terrain_node.setShaderAuto()
         
         print(f"Terrain: {self.terrain.map_width}x{self.terrain.map_height} with enhanced colors")
+
+    def setup_track(self):
+        """Setup track runtime geometry if a map config is selected."""
+        selected = getattr(self, "_selected_map", None)
+        if not isinstance(selected, dict):
+            return
+
+        track_data = selected.get("track")
+        if not isinstance(track_data, dict):
+            return
+
+        try:
+            track_csv = str(track_data.get("csv_path") or track_data.get("track_csv_path") or "scripts/track_example.csv")
+            coord_space = str(track_data.get("coord_space") or "normalized")
+
+            geom = track_data.get("geometry", {}) if isinstance(track_data.get("geometry"), dict) else {}
+            visuals = track_data.get("visuals", {}) if isinstance(track_data.get("visuals"), dict) else {}
+
+            def to_rgba(value, default):
+                if isinstance(value, (list, tuple)) and len(value) >= 4:
+                    return (float(value[0]), float(value[1]), float(value[2]), float(value[3]))
+                return default
+
+            track_cfg = TrackConfig(
+                track_csv_path=track_csv,
+                coord_space=coord_space,
+                elevation_offset=float(geom.get("elevation_offset", 0.05)),
+                track_width=float(geom.get("track_width", 9.0)),
+                border_width=float(geom.get("border_width", 0.8)),
+                samples_per_segment=int(geom.get("samples_per_segment", 8)),
+                show_centerline=bool(visuals.get("show_centerline", True)),
+                track_color=to_rgba(visuals.get("track_color"), TrackConfig.track_color),
+                border_color=to_rgba(visuals.get("border_color"), TrackConfig.border_color),
+                centerline_color=to_rgba(visuals.get("centerline_color"), TrackConfig.centerline_color),
+            )
+
+            self.runtime_track = RuntimeTrack(track_cfg, self.terrain)
+            self.track_node = self.runtime_track.build(self.render)
+
+            start_pos, start_heading = self.runtime_track.get_start_pose()
+            self._spawn_player_at(start_pos, start_heading)
+            print(f"Track: loaded from {track_csv}")
+        except Exception as e:
+            print(f"Track: failed to load ({e})")
+
+    def _spawn_player_at(self, pos: "Vec3", heading: float) -> None:
+        """Place the player vehicle at a given world pose."""
+        try:
+            state = self.player_vehicle.get_state()
+            state.position.x = float(pos.x)
+            state.position.y = float(pos.y)
+            state.position.z = float(pos.z)
+            state.heading = float(heading)
+            state.speed = 0.0
+        except Exception:
+            pass
     
     def setup_environment(self):
         """Add environment details"""
@@ -304,22 +416,56 @@ class RacingGame(ShowBase):
         self.env_props = []
 
         scale = float(self.terrain_world_scale)
+
+        scenery = {}
+        selected = getattr(self, "_selected_map", None)
+        if isinstance(selected, dict) and isinstance(selected.get("scenery"), dict):
+            scenery = selected.get("scenery") or {}
+
+        trees_cfg = scenery.get("trees", {}) if isinstance(scenery.get("trees"), dict) else {}
+        rocks_cfg = scenery.get("rocks", {}) if isinstance(scenery.get("rocks"), dict) else {}
+
+        trees_count = int(trees_cfg.get("count", 30))
+        rocks_count = int(rocks_cfg.get("count", 40))
+
+        rocks_min_r = float(rocks_cfg.get("min_radius", 30))
+        rocks_max_r = float(rocks_cfg.get("max_radius", 90))
+        trees_min_r = float(trees_cfg.get("min_radius", 40))
+        trees_max_r = float(trees_cfg.get("max_radius", 95))
+
+        rocks_excl = rocks_cfg.get("exclude_center", {})
+        trees_excl = trees_cfg.get("exclude_center", {})
+        if not isinstance(rocks_excl, dict):
+            rocks_excl = {}
+        if not isinstance(trees_excl, dict):
+            trees_excl = {}
+
+        rocks_excl_w = float(rocks_excl.get("width", 15))
+        rocks_excl_l = float(rocks_excl.get("length", 100))
+        trees_excl_w = float(trees_excl.get("width", 18))
+        trees_excl_l = float(trees_excl.get("length", 100))
+
+        rocks_size = rocks_cfg.get("size_range", [1.5, 4.0])
+        if not isinstance(rocks_size, (list, tuple)) or len(rocks_size) < 2:
+            rocks_size = [1.5, 4.0]
+        rock_size_min = float(rocks_size[0])
+        rock_size_max = float(rocks_size[1])
         
         # Add random rocks
-        for i in range(40):
+        for i in range(max(0, rocks_count)):
             angle = random.uniform(0, 2 * math.pi)
-            radius = random.uniform(30 * scale, 90 * scale)
+            radius = random.uniform(rocks_min_r * scale, rocks_max_r * scale)
             x = math.cos(angle) * radius
             y = math.sin(angle) * radius
             
             # Skip center area (track)
-            if abs(x) < 15 and abs(y) < 100:
+            if abs(x) < rocks_excl_w and abs(y) < rocks_excl_l:
                 continue
             
             # Create rock
             rock = self.loader.loadModel("box")
-            scale = random.uniform(1.5, 4.0)
-            rock.setScale(scale, scale, scale * 0.6)
+            rscale = random.uniform(rock_size_min, rock_size_max)
+            rock.setScale(rscale, rscale, rscale * 0.6)
             rock.setPos(x, y, 0.5)
             
             # Color rocks grey-brown
@@ -332,14 +478,14 @@ class RacingGame(ShowBase):
             self.env_props.append(rock)
         
         # Add random trees (simplified as cones)
-        for i in range(30):
+        for i in range(max(0, trees_count)):
             angle = random.uniform(0, 2 * math.pi)
-            radius = random.uniform(40 * scale, 95 * scale)
+            radius = random.uniform(trees_min_r * scale, trees_max_r * scale)
             x = math.cos(angle) * radius
             y = math.sin(angle) * radius
             
             # Skip center area
-            if abs(x) < 18 and abs(y) < 100:
+            if abs(x) < trees_excl_w and abs(y) < trees_excl_l:
                 continue
             
             # Tree trunk
@@ -361,6 +507,128 @@ class RacingGame(ShowBase):
             self.env_props.append(foliage)
         
         print(f"Environment: Added {len(self.env_props)} props (rocks and trees)")
+
+    def _parse_resolution(self, text: str, *, default: tuple[int, int]) -> tuple[int, int]:
+        s = (text or "").strip().lower()
+        if "x" in s:
+            try:
+                w_s, h_s = s.split("x", 1)
+                w = int(w_s.strip())
+                h = int(h_s.strip())
+                if w > 0 and h > 0:
+                    return w, h
+            except Exception:
+                pass
+        return int(default[0]), int(default[1])
+
+    def _load_vehicle_config(self, vehicle_id: str) -> dict | None:
+        vehicle_id = (vehicle_id or "").strip()
+        if not vehicle_id:
+            return None
+        try:
+            from core.config_manager import ConfigManager
+
+            cm = ConfigManager()
+            raw = cm.load_config("vehicles", vehicle_id)
+
+            physics = dict(raw.get("physics", {}) or {})
+            physics.setdefault("mass", raw.get("vehicle_mass", physics.get("mass", 1500.0)))
+
+            suspension = dict(raw.get("suspension", {}) or {})
+            suspension.setdefault("vehicle_mass", raw.get("vehicle_mass", 1500.0))
+
+            pose = dict(raw.get("pose", {}) or {})
+            pose.setdefault("vehicle_mass", raw.get("vehicle_mass", 1500.0))
+
+            return {
+                "name": raw.get("name", vehicle_id),
+                "position": raw.get("position", [0, 0, 12.0]),
+                "heading": raw.get("heading", 0),
+                "vehicle_mass": raw.get("vehicle_mass", 1500.0),
+                "physics": physics,
+                "suspension": suspension,
+                "pose": pose,
+                "wheels": raw.get("wheels", []),
+                "tires": raw.get("tires", []),
+                "transmission": raw.get("transmission", {}),
+            }
+        except Exception as e:
+            print(f"[config] Failed to load vehicle '{vehicle_id}': {e}")
+            return None
+
+    def _load_map_selection(self, map_id: str) -> dict | None:
+        map_id = (map_id or "").strip()
+        if not map_id:
+            return None
+
+        try:
+            from core.map_config_manager import MapConfigManager
+
+            mgr = MapConfigManager()
+            cfg = mgr.load_config(map_id)
+        except Exception as e:
+            print(f"[config] Failed to load map '{map_id}': {e}")
+            return None
+
+        terrain_mod = cfg.modules.get("1_terrain")
+        terrain_data = terrain_mod.data if terrain_mod else {}
+        terrain_output = str(terrain_data.get("output") or "race_base")
+
+        heightmap_candidates = [
+            Path("res/terrain") / f"{terrain_output}.npy",
+            Path("res/terrain") / f"{terrain_output}.pgm",
+        ]
+        heightmap_path = None
+        for cand in heightmap_candidates:
+            if (PROJECT_ROOT / cand).exists():
+                heightmap_path = str(cand)
+                break
+        if heightmap_path is None:
+            heightmap_path = "res/terrain/smoke_flat_hd_regen_cli.npy"
+
+        colors = None
+        colors_path = PROJECT_ROOT / "res" / "terrain" / f"{terrain_output}_colors.json"
+        if colors_path.exists():
+            try:
+                with open(colors_path, "r", encoding="utf-8") as f:
+                    colors = json.load(f)
+            except Exception:
+                colors = None
+
+        track = None
+        track_mod = cfg.modules.get("3_track")
+        if track_mod and track_mod.generated_files:
+            runtime_json = next((p for p in track_mod.generated_files if str(p).endswith("_runtime.json")), None)
+            if runtime_json and (PROJECT_ROOT / runtime_json).exists():
+                try:
+                    with open(PROJECT_ROOT / runtime_json, "r", encoding="utf-8") as f:
+                        track = json.load(f)
+                except Exception:
+                    track = None
+        if track is None and track_mod:
+            track = dict(track_mod.data or {})
+
+        scenery = None
+        scenery_mod = cfg.modules.get("4_scenery")
+        if scenery_mod and scenery_mod.generated_files:
+            scen_json = next((p for p in scenery_mod.generated_files if str(p).endswith(".json")), None)
+            if scen_json and (PROJECT_ROOT / scen_json).exists():
+                try:
+                    with open(PROJECT_ROOT / scen_json, "r", encoding="utf-8") as f:
+                        scenery = json.load(f)
+                except Exception:
+                    scenery = None
+        if scenery is None and scenery_mod:
+            scenery = dict(scenery_mod.data or {})
+
+        return {
+            "id": map_id,
+            "terrain_output": terrain_output,
+            "heightmap_path": heightmap_path,
+            "colors": colors,
+            "track": track,
+            "scenery": scenery,
+        }
 
     def _attach_centered_box(self, parent, name: str, size_xyz, pos_xyz, color_rgba, hpr_xyz=None):
         """Attach a unit box centered on the parent node.
@@ -1131,5 +1399,25 @@ class RacingGame(ShowBase):
         sys.exit()
 
 if __name__ == "__main__":
-    game = RacingGame()
+    parser = argparse.ArgumentParser(add_help=True)
+    parser.add_argument("--vehicle", default="", help="Vehicle config id (configs/vehicles/*.json stem)")
+    parser.add_argument("--map", dest="map_config", default="", help="Map config id (configs/maps/*.json stem)")
+    parser.add_argument("--resolution", default="1280x720", help="Window size, e.g. 1280x720")
+    parser.add_argument("--fullscreen", action="store_true", help="Fullscreen window")
+    parser.add_argument("--no-shadows", action="store_true", help="Disable shadow casting")
+    parser.add_argument("--debug", action="store_true", help="Enable extra debug output")
+
+    args = parser.parse_args()
+
+    # Prevent Panda3D from seeing our custom CLI flags.
+    sys.argv = [sys.argv[0]]
+
+    game = RacingGame(
+        vehicle_config_id=args.vehicle,
+        map_config_id=args.map_config,
+        resolution=args.resolution,
+        fullscreen=bool(args.fullscreen),
+        enable_shadows=not bool(args.no_shadows),
+        debug=bool(args.debug),
+    )
     game.run()

@@ -1,0 +1,36 @@
+{
+  "name": "race_base",
+  "shape": [
+    1024,
+    1024
+  ],
+  "seed": 42,
+  "generator": "opensimplex",
+  "params": {
+    "octaves": 5,
+    "base_frequency": 0.003,
+    "persistence": 0.5,
+    "lacunarity": 2.0,
+    "smooth_sigma": 2.5,
+    "relief_strength": 0.25
+  },
+  "track_flatten": {
+    "enabled": false,
+    "track_csv": "",
+    "coord_space": "normalized",
+    "corridor_width_px": 90.0,
+    "edge_falloff_px": 40.0,
+    "strength": 0.9
+  },
+  "stats": {
+    "min": 0.0,
+    "max": 1.0,
+    "mean": 0.44788420283995306,
+    "std": 0.18285621341304217
+  },
+  "artifacts": {
+    "npy": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.npy",
+    "pgm16": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.pgm",
+    "report": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.json"
+  }
+}

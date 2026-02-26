@@ -13,6 +13,7 @@ from typing import Any, List, Optional
 from PySide6 import QtCore, QtWidgets
 
 from console_modules.base_module import ConsoleModule
+from core.map_config_manager import MapConfigManager
 
 
 class GameLauncherModule(ConsoleModule):
@@ -24,9 +25,11 @@ class GameLauncherModule(ConsoleModule):
     def __init__(self, console_app: Any):
         super().__init__(console_app)
         self.vehicle_configs: List[str] = []
-        self.terrain_configs: List[str] = []
+        self.map_configs: List[str] = []
         self.selected_vehicle: Optional[str] = None
-        self.selected_terrain: Optional[str] = None
+        self.selected_map: Optional[str] = None
+
+        self.map_config_manager = MapConfigManager()
 
         self.process: Optional[QtCore.QProcess] = None
         self._game_log_path: Optional[str] = None
@@ -34,7 +37,7 @@ class GameLauncherModule(ConsoleModule):
 
         # UI refs
         self.vehicle_combo: Optional[QtWidgets.QComboBox] = None
-        self.terrain_combo: Optional[QtWidgets.QComboBox] = None
+        self.map_combo: Optional[QtWidgets.QComboBox] = None
         self.debug_check: Optional[QtWidgets.QCheckBox] = None
         self.fullscreen_check: Optional[QtWidgets.QCheckBox] = None
         self.shadows_check: Optional[QtWidgets.QCheckBox] = None
@@ -57,8 +60,8 @@ class GameLauncherModule(ConsoleModule):
 
         layout.addWidget(self._hline())
 
-        layout.addLayout(self._build_config_row("车辆配置:", is_vehicle=True))
-        layout.addLayout(self._build_config_row("地形配置:", is_vehicle=False))
+        layout.addLayout(self._build_config_row("车辆配置:", kind="vehicle"))
+        layout.addLayout(self._build_config_row("地图配置:", kind="map"))
 
         # Settings
         settings = QtWidgets.QGroupBox("游戏设置")
@@ -127,38 +130,43 @@ class GameLauncherModule(ConsoleModule):
         line.setStyleSheet("color: #333333;")
         return line
 
-    def _build_config_row(self, label: str, *, is_vehicle: bool) -> QtWidgets.QHBoxLayout:
+    def _build_config_row(self, label: str, *, kind: str) -> QtWidgets.QHBoxLayout:
         row = QtWidgets.QHBoxLayout()
         label_w = QtWidgets.QLabel(label)
-        if is_vehicle:
+        if kind == "vehicle":
             label_w.setToolTip("从 configs/vehicles 选择车辆配置。")
+        elif kind == "map":
+            label_w.setToolTip("从 configs/maps 选择地图配置（由“地图生成”模块自动保存）。")
         else:
-            label_w.setToolTip("从 configs/terrain 选择地形配置。")
+            label_w.setToolTip("选择配置。")
         row.addWidget(label_w, 0)
         combo = QtWidgets.QComboBox()
         combo.setMinimumWidth(220)
-        if is_vehicle:
+        if kind == "vehicle":
             combo.setToolTip("选择车辆配置（configs/vehicles/*.json）。")
+        elif kind == "map":
+            combo.setToolTip("选择地图配置（configs/maps/*.json）。")
         else:
-            combo.setToolTip("选择地形配置（configs/terrain/*.json）。")
+            combo.setToolTip("选择配置。")
         row.addWidget(combo, 0)
 
         refresh = QtWidgets.QPushButton("🔄 刷新")
         refresh.clicked.connect(self._refresh_configs)
         row.addWidget(refresh, 0)
 
-        if is_vehicle:
+        if kind == "vehicle":
             edit = QtWidgets.QPushButton("✏️ 编辑")
             edit.clicked.connect(self._edit_vehicle_config)
             row.addWidget(edit, 0)
             self.vehicle_combo = combo
             self.vehicle_combo.currentTextChanged.connect(self._on_vehicle_selected)
-        else:
-            gen = QtWidgets.QPushButton("🛠️ 生成")
-            gen.clicked.connect(self._open_terrain_generator)
+        elif kind == "map":
+            gen = QtWidgets.QPushButton("🗺️ 地图生成")
+            gen.setToolTip("打开“地图生成”模块，生成并自动保存地图配置。")
+            gen.clicked.connect(self._open_map_generator)
             row.addWidget(gen, 0)
-            self.terrain_combo = combo
-            self.terrain_combo.currentTextChanged.connect(self._on_terrain_selected)
+            self.map_combo = combo
+            self.map_combo.currentTextChanged.connect(self._on_map_selected)
 
         row.addStretch(1)
         return row
@@ -181,16 +189,16 @@ class GameLauncherModule(ConsoleModule):
                 self.vehicle_combo.setCurrentText(self.selected_vehicle)
                 self._update_vehicle_info()
 
-        self.terrain_configs = config_mgr.list_configs("terrain")
-        if self.terrain_combo is not None:
-            self.terrain_combo.blockSignals(True)
-            self.terrain_combo.clear()
-            self.terrain_combo.addItems(self.terrain_configs)
-            self.terrain_combo.blockSignals(False)
-            if self.terrain_configs:
-                if self.selected_terrain not in self.terrain_configs:
-                    self.selected_terrain = self.terrain_configs[0]
-                self.terrain_combo.setCurrentText(self.selected_terrain)
+        self.map_configs = sorted(self.map_config_manager.list_configs())
+        if self.map_combo is not None:
+            self.map_combo.blockSignals(True)
+            self.map_combo.clear()
+            self.map_combo.addItems(self.map_configs)
+            self.map_combo.blockSignals(False)
+            if self.map_configs:
+                if self.selected_map not in self.map_configs:
+                    self.selected_map = self.map_configs[0]
+                self.map_combo.setCurrentText(self.selected_map)
 
         self.log(f"已加载 {len(self.vehicle_configs)} 个车辆配置", "info")
 
@@ -198,8 +206,8 @@ class GameLauncherModule(ConsoleModule):
         self.selected_vehicle = value or None
         self._update_vehicle_info()
 
-    def _on_terrain_selected(self, value: str) -> None:
-        self.selected_terrain = value or None
+    def _on_map_selected(self, value: str) -> None:
+        self.selected_map = value or None
 
     def _update_vehicle_info(self) -> None:
         if not self.selected_vehicle or self.vehicle_info_label is None:
@@ -229,10 +237,16 @@ class GameLauncherModule(ConsoleModule):
             return
 
         args = ["main.py", "--vehicle", self.selected_vehicle]
-        if self.selected_terrain:
-            args += ["--terrain", self.selected_terrain]
+        if self.selected_map:
+            args += ["--map", self.selected_map]
         if self.debug_check is not None and self.debug_check.isChecked():
             args.append("--debug")
+        if self.fullscreen_check is not None and self.fullscreen_check.isChecked():
+            args.append("--fullscreen")
+        if self.shadows_check is not None and not self.shadows_check.isChecked():
+            args.append("--no-shadows")
+        if self.resolution_combo is not None and self.resolution_combo.currentText():
+            args += ["--resolution", self.resolution_combo.currentText()]
 
         if hasattr(self.console_app, "get_logs_dir"):
             logs_dir = self.console_app.get_logs_dir()
@@ -332,10 +346,10 @@ class GameLauncherModule(ConsoleModule):
             return
         self.log(f"编辑配置：{self.selected_vehicle}", "info")
 
-    def _open_terrain_generator(self) -> None:
-        self.log("切换到地形生成器", "info")
+    def _open_map_generator(self) -> None:
+        self.log("切换到地图生成器", "info")
         if hasattr(self.console_app, "switch_module"):
-            self.console_app.switch_module("terrain_generator")
+            self.console_app.switch_module("map_generator")
 
     def _view_log(self) -> None:
         logs_dir = self.console_app.get_logs_dir() if hasattr(self.console_app, "get_logs_dir") else os.path.join(os.getcwd(), "logs")

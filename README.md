@@ -36,7 +36,7 @@ python console.py
 
 - **🚀 游戏启动**
   - 多车辆配置选择（跑车/卡车/越野车）
-  - 地形配置选择
+  - 地图配置选择（由“地图生成”模块自动保存）
   - 游戏设置（全屏/调试模式）
   - 实时状态监控
 
@@ -46,10 +46,10 @@ python console.py
   - 实时进度显示
   - 日志输出
 
-- **⚙️ 配置管理**
-  - 车辆配置保存/加载
-  - 地形配置管理
-  - 预设配置支持
+- **🗺️ 地图生成**
+  - 选择/新建地图配置（自动出现在列表中）
+  - 分步生成（地形/颜色/赛道/场景）与一键生成
+  - 生成成功后自动保存到 `configs/maps/`
 
 ### 车辆系统
 
@@ -112,15 +112,16 @@ python console.py
 ```
 vehiclegame/
 ├── 📄 console.py              # 游戏控制台入口
-├── 📄 console_app.py          # 控制台主应用
 ├── 📄 main.py                 # 游戏主入口
 │
 ├── 📁 console_modules/        # 控制台模块
 │   ├── game_launcher.py       # 🚀 游戏启动（多车辆支持）
-│   └── terrain_generator.py   # 🛠️ 地形生成
+│   ├── terrain_generator.py   # 🛠️ 地形生成
+│   └── map_generator.py       # 🗺️ 地图生成（配置选择/新建/自动保存）
 │
 ├── 📁 core/                   # 核心组件
 │   ├── config_manager.py      # 配置管理
+│   ├── map_config_manager.py  # 地图配置管理（configs/maps）
 │   └── process_manager.py     # 进程管理
 │
 ├── 📁 configs/                # 配置文件
@@ -128,7 +129,9 @@ vehiclegame/
 │   │   ├── sports_car.json    # 跑车 (1500kg)
 │   │   ├── truck.json         # 卡车 (3500kg)
 │   │   └── offroad.json       # 越野车 (2200kg)
-│   └── terrain/
+│   ├── maps/                  # 地图配置（自动保存）
+│   ├── tracks/                # 赛道运行时配置（生成输出）
+│   └── scenery/               # 场景元素配置（生成输出）
 │
 ├── 📁 src/                    # 游戏业务代码
 │   ├── business/
@@ -229,7 +232,7 @@ python examples/test_complete.py
 
 1. 创建 `console_modules/my_module.py`
 2. 继承 `ConsoleModule` 基类
-3. 在 `console_app.py` 的 `_register_modules()` 中导入并注册
+3. 在 `console.py` 的 `_register_modules()` 中导入并注册
 
 详见：[`docs/console/CONSOLE.md`](docs/console/CONSOLE.md#扩展开发)
 

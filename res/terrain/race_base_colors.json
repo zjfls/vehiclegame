@@ -1,0 +1,25 @@
+{
+  "version": "1.0",
+  "terrain_base": "race_base",
+  "mode": "procedural",
+  "generated_at": 35670.168953041,
+  "procedural": {
+    "grass_color": [
+      0.08,
+      0.38,
+      0.08
+    ],
+    "dirt_color": [
+      0.58,
+      0.42,
+      0.25
+    ],
+    "rock_color": [
+      0.68,
+      0.62,
+      0.55
+    ],
+    "height_rock_threshold": 0.4,
+    "slope_rock_threshold": 0.3
+  }
+}

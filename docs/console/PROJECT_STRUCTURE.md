@@ -5,7 +5,6 @@
 ```
 vehiclegame/
 ├── 📄 console.py                    # 控制台入口脚本
-├── 📄 console_app.py                # 控制台主应用类
 ├── 📁 tests/                        # 测试脚本
 │   └── test_console.py              # 组件测试脚本
 ├── 📁 docs/                         # 文档目录
@@ -17,11 +16,13 @@ vehiclegame/
 │   ├── __init__.py
 │   ├── base_module.py              # 模块基类 & 注册中心
 │   ├── game_launcher.py            # 🚀 游戏启动模块（支持多车辆）
-│   └── terrain_generator.py        # 🛠️ 地形生成模块
+│   ├── terrain_generator.py        # 🛠️ 地形生成模块
+│   └── map_generator.py            # 🗺️ 地图生成模块（配置选择/新建/自动保存）
 │
 ├── 📁 core/                        # 核心组件
 │   ├── __init__.py
 │   ├── config_manager.py           # 配置管理器
+│   ├── map_config_manager.py       # 地图配置管理器（configs/maps）
 │   └── process_manager.py          # 进程管理器
 │
 ├── 📁 configs/                     # 配置文件目录
@@ -29,8 +30,9 @@ vehiclegame/
 │   │   ├── sports_car.json        # 跑车配置 (1500kg)
 │   │   ├── truck.json             # 卡车配置 (3500kg)
 │   │   └── offroad.json           # 越野车配置 (2200kg)
-│   └── terrain/
-│       └── (自定义地形配置)
+│   ├── maps/                       # 地图配置（自动保存）
+│   ├── tracks/                     # 赛道运行时配置（生成输出）
+│   └── scenery/                    # 场景元素配置（生成输出）
 │
 ├── 📄 main.py                      # 游戏主入口（现有）
 ├── 📁 src/                         # 游戏业务代码（现有）
@@ -50,12 +52,9 @@ vehiclegame/
 ## 核心组件说明
 
 ### 1. 控制台入口 (`console.py`)
-- 依赖检查
-- 应用启动
-- 错误处理
+- 入口与应用主类（Qt / PySide6）
 
-### 2. 控制台应用 (`console_app.py`)
-**类**: `ConsoleApp`
+**类**: `ConsoleApp`（位于 `console.py`）
 - 初始化 Qt 主窗口与布局
 - 注册功能模块
 - 管理模块切换
@@ -111,7 +110,7 @@ vehiclegame/
 ### 6. 游戏启动模块 (`console_modules/game_launcher.py`)
 **类**: `GameLauncherModule`
 - 多车辆配置选择
-- 地形配置选择
+- 地图配置选择（`configs/maps/*.json`）
 - 游戏设置
 - 启动/停止控制
 
@@ -169,28 +168,29 @@ vehiclegame/
 
 ```mermaid
 graph TD
-    A[console.py] --> B[console_app.py]
-    B --> C[ConfigManager]
-    B --> D[ProcessManager]
-    B --> E[ModuleRegistry]
+    A[console.py] --> C[ConfigManager]
+    A --> D[ProcessManager]
+    A --> E[ModuleRegistry]
     
     E --> F[GameLauncherModule]
     E --> G[TerrainGeneratorModule]
+    E --> K[MapGeneratorModule]
     
     F --> C
     F --> D
     G --> D
+    K --> D
     
     C --> H[configs/vehicles/*.json]
     D --> I[main.py]
     D --> J[scripts/generate_terrain.py]
     
     style A fill:#e8f3ff
-    style B fill:#e8f3ff
     style C fill:#ecfdf3
     style D fill:#ecfdf3
     style F fill:#fef3c7
     style G fill:#fef3c7
+    style K fill:#fef3c7
     style H fill:#f3f4f6
 ```
 
@@ -231,7 +231,7 @@ class MyModule(ConsoleModule):
         parent.addWidget(label)
 ```
 
-2. 在 `console_app.py` 中导入:
+2. 在 `console.py` 中导入:
 ```python
 from console_modules.my_module import MyModule
 ```

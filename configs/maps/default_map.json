@@ -1,0 +1,72 @@
+{
+  "name": "default_map",
+  "version": "1.0",
+  "description": "地图配置：default_map",
+  "metadata": {},
+  "1_terrain": {
+    "enabled": true,
+    "depends_on": null,
+    "status": "completed",
+    "generated_files": [
+      "res/terrain/race_base.npy",
+      "res/terrain/race_base.pgm",
+      "res/terrain/race_base.json"
+    ],
+    "width": 1024,
+    "height": 1024,
+    "seed": 42,
+    "output": "race_base",
+    "noise": {
+      "base_frequency": 0.003,
+      "octaves": 5,
+      "persistence": 0.5,
+      "lacunarity": 2.0
+    },
+    "sculpt": {
+      "smooth_sigma": 2.5,
+      "relief_strength": 0.25
+    }
+  },
+  "2_colors": {
+    "enabled": true,
+    "depends_on": "1_terrain",
+    "status": "completed",
+    "generated_files": [
+      "res/terrain/race_base_colors.json"
+    ],
+    "mode": "procedural",
+    "procedural": {}
+  },
+  "3_track": {
+    "enabled": true,
+    "depends_on": "1_terrain",
+    "status": "completed",
+    "generated_files": [
+      "configs/tracks/default_track_runtime.json",
+      "configs/tracks/default_track.csv"
+    ],
+    "csv_path": "configs/tracks/default_track.csv",
+    "coord_space": "normalized",
+    "geometry": {
+      "track_width": 9.0,
+      "border_width": 0.8,
+      "samples_per_segment": 8
+    }
+  },
+  "4_scenery": {
+    "enabled": true,
+    "depends_on": "1_terrain",
+    "status": "completed",
+    "generated_files": [
+      "configs/scenery/race_base_scenery.json"
+    ],
+    "trees": {
+      "count": 30,
+      "enabled": true
+    },
+    "rocks": {
+      "count": 40,
+      "enabled": true
+    }
+  }
+}

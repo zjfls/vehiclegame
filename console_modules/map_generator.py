@@ -25,6 +25,31 @@ from generators import (
 )
 
 
+class _UiDispatcher(QtCore.QObject):
+    """Dispatch callables to the Qt main thread safely."""
+
+    invoke = QtCore.Signal(object)
+
+    def __init__(self):
+        super().__init__()
+        self.invoke.connect(self._invoke, QtCore.Qt.QueuedConnection)
+
+    @QtCore.Slot(object)
+    def _invoke(self, fn) -> None:
+        try:
+            fn()
+        except RuntimeError:
+            # Qt widgets might already be deleted (window closing / module switch).
+            pass
+        except Exception:
+            import traceback
+
+            traceback.print_exc()
+
+    def post(self, fn) -> None:
+        self.invoke.emit(fn)
+
+
 class MapGeneratorModule(ConsoleModule):
     """地图生成模块"""
     
@@ -67,16 +92,37 @@ class MapGeneratorModule(ConsoleModule):
         
         # 配置管理
         self.config_combo: Optional[QtWidgets.QComboBox] = None
-        self.save_button: Optional[QtWidgets.QPushButton] = None
-        self.load_button: Optional[QtWidgets.QPushButton] = None
         self.new_button: Optional[QtWidgets.QPushButton] = None
+        self.refresh_button: Optional[QtWidgets.QPushButton] = None
         
         # 异步任务
         self._current_task: Optional[asyncio.Task] = None
+
+        # UI 调度器（确保所有 Qt 控件更新发生在主线程）
+        self._ui = _UiDispatcher()
         
         # 设置日志回调
-        self.orchestrator.log_callback = self._on_orchestrator_log
-        self.orchestrator.progress_callback = self._on_orchestrator_progress
+        self.orchestrator.log_callback = self._on_orchestrator_log_threadsafe
+        self.orchestrator.progress_callback = self._on_orchestrator_progress_threadsafe
+
+    def _ui_post(self, fn) -> None:
+        """Thread-safe UI update helper."""
+        try:
+            self._ui.post(fn)
+        except Exception:
+            # Fallback: best-effort direct call (should only happen in main thread).
+            try:
+                fn()
+            except Exception:
+                pass
+
+    def _on_orchestrator_log_threadsafe(self, message: str, level: str):
+        """编排器日志回调（线程安全）"""
+        self._ui_post(lambda: self._on_orchestrator_log(message, level))
+
+    def _on_orchestrator_progress_threadsafe(self, step_name: str, progress: float):
+        """编排器进度回调（线程安全）"""
+        self._ui_post(lambda: self._on_orchestrator_progress(step_name, progress))
     
     def build_ui(self, parent) -> None:
         """构建 UI"""
@@ -150,7 +196,7 @@ class MapGeneratorModule(ConsoleModule):
         
         # 初始化默认配置
         self._load_config_list()
-        self._create_default_config()
+        self._ensure_initial_config()
     
     def _build_toolbar(self) -> QtWidgets.QWidget:
         """构建配置管理工具栏"""
@@ -159,7 +205,7 @@ class MapGeneratorModule(ConsoleModule):
         layout.setContentsMargins(0, 10, 0, 10)
         
         # 配置选择
-        layout.addWidget(QtWidgets.QLabel("配置:"))
+        layout.addWidget(QtWidgets.QLabel("地图配置:"))
         
         self.config_combo = QtWidgets.QComboBox()
         self.config_combo.setMinimumWidth(200)
@@ -170,14 +216,11 @@ class MapGeneratorModule(ConsoleModule):
         self.new_button = QtWidgets.QPushButton("➕ 新建")
         self.new_button.clicked.connect(self._on_new_config)
         layout.addWidget(self.new_button)
-        
-        self.load_button = QtWidgets.QPushButton("📂 加载")
-        self.load_button.clicked.connect(self._on_load_config)
-        layout.addWidget(self.load_button)
-        
-        self.save_button = QtWidgets.QPushButton("💾 保存")
-        self.save_button.clicked.connect(self._on_save_config)
-        layout.addWidget(self.save_button)
+
+        self.refresh_button = QtWidgets.QPushButton("🔄 刷新")
+        self.refresh_button.setToolTip("重新扫描 configs/maps 下的配置文件")
+        self.refresh_button.clicked.connect(self._on_refresh_configs)
+        layout.addWidget(self.refresh_button)
         
         layout.addStretch(1)
         
@@ -489,25 +532,37 @@ class MapGeneratorModule(ConsoleModule):
         
         return widget
     
-    def _load_config_list(self):
+    def _load_config_list(self, *, select: Optional[str] = None) -> None:
         """加载配置列表到下拉框"""
+        if not self.config_combo:
+            return
+
         self.config_combo.blockSignals(True)
         self.config_combo.clear()
-        
-        configs = self.config_manager.list_configs()
+
+        configs = sorted(self.config_manager.list_configs())
         if configs:
             self.config_combo.addItems(configs)
         else:
             self.config_combo.addItem("（无配置）")
-        
+
         self.config_combo.blockSignals(False)
-    
-    def _create_default_config(self):
-        """创建默认配置"""
-        if not self.current_config:
-            self.current_config = self.config_manager.create_default_config("Default Map")
-            self.current_config_name = "Default Map"
-            self._populate_ui_from_config()
+
+        if select and select in configs:
+            self.config_combo.setCurrentText(select)
+
+    def _ensure_initial_config(self) -> None:
+        """启动时：优先加载已有配置；否则创建 default_map 并保存。"""
+        configs = sorted(self.config_manager.list_configs())
+        if configs:
+            # 默认加载第一个配置（下拉框已选中但信号被阻塞，所以这里手动触发）
+            self._on_config_selected(configs[0])
+            if self.config_combo:
+                self.config_combo.setCurrentText(configs[0])
+            return
+
+        # 没有任何配置：创建一个默认配置并落盘，保证能在列表里看到
+        self._create_new_config("default_map", select_after=True)
     
     def _populate_ui_from_config(self):
         """从当前配置填充 UI"""
@@ -557,6 +612,48 @@ class MapGeneratorModule(ConsoleModule):
             
             # 更新状态
             self._update_module_status(module_id, module.status)
+
+    def _sync_config_from_ui(self) -> None:
+        """将 UI 当前值写回到 current_config.modules[*].data（用于自动保存）。"""
+        if not self.current_config:
+            return
+        for module_id, module in self.current_config.modules.items():
+            new_data = self._collect_module_config(module_id)
+            # 1_terrain 我们有完整表单，直接覆盖；其它模块目前只收集了部分字段，做合并避免丢字段
+            if module_id == "1_terrain" or not isinstance(module.data, dict):
+                module.data = new_data
+            else:
+                self._merge_dict(module.data, new_data)
+
+    def _merge_dict(self, dst: Dict[str, Any], src: Dict[str, Any]) -> None:
+        """递归合并字典（src 覆盖 dst，同 key 且都是 dict 时继续合并）。"""
+        for k, v in (src or {}).items():
+            if isinstance(v, dict) and isinstance(dst.get(k), dict):
+                self._merge_dict(dst[k], v)  # type: ignore[index]
+            else:
+                dst[k] = v
+
+    def _auto_save_current_config(self, *, reason: str = "", sync_from_ui: bool = True) -> None:
+        """自动保存配置到 configs/maps（不弹交互，失败只记录日志）。"""
+        if not self.current_config:
+            return
+        if not self.current_config_name:
+            # 兜底：使用 config.name 作为文件名
+            self.current_config_name = (self.current_config.name or "default_map").replace(" ", "_").lower()
+
+        # 保证文件名稳定：始终以 current_config_name 保存
+        self.current_config.name = self.current_config_name
+        self.current_config.description = f"地图配置：{self.current_config_name}"
+
+        try:
+            if sync_from_ui:
+                self._sync_config_from_ui()
+            path = self.config_manager.save_config(self.current_config)
+            self._load_config_list(select=self.current_config_name)
+            if reason:
+                self._log(f"💾 自动保存配置（{reason}）：{Path(path).name}", "info")
+        except Exception as e:
+            self._log(f"❌ 自动保存失败：{e}", "error")
     
     def _update_module_status(self, module_id: str, status: str):
         """更新模块状态显示"""
@@ -611,6 +708,14 @@ class MapGeneratorModule(ConsoleModule):
         
         # 获取配置数据
         config_data = self._collect_module_config(module_id)
+
+        # 同步到当前配置（后续自动保存要用）
+        if self.current_config and module_id in self.current_config.modules:
+            mod = self.current_config.modules[module_id]
+            if module_id == "1_terrain" or not isinstance(mod.data, dict):
+                mod.data = config_data
+            else:
+                self._merge_dict(mod.data, config_data)
         
         # 创建步骤
         step = self._create_step(module_id, config_data)
@@ -736,23 +841,29 @@ class MapGeneratorModule(ConsoleModule):
     
     async def _execute_step(self, module_id: str, step):
         """执行步骤"""
-        self._update_module_status(module_id, "running")
+        self._ui_post(lambda: self._update_module_status(module_id, "running"))
         
         success, message = await self.orchestrator.execute_step(module_id)
-        
-        if success:
-            self._update_module_status(module_id, "completed")
-            if self.current_config:
-                self.config_manager.update_module_status(
-                    self.current_config,
-                    module_id,
-                    "completed",
-                    step.generated_files
-                )
-        else:
-            self._update_module_status(module_id, "error")
-        
-        self._log(f"{module_id}: {message}", "info" if success else "error")
+
+        generated_files = list(getattr(step, "generated_files", []) or [])
+
+        def finalize() -> None:
+            if success:
+                self._update_module_status(module_id, "completed")
+                if self.current_config:
+                    self.config_manager.update_module_status(
+                        self.current_config,
+                        module_id,
+                        "completed",
+                        generated_files,
+                    )
+                    self._auto_save_current_config(reason=f"{module_id} 生成完成")
+            else:
+                self._update_module_status(module_id, "error")
+
+            self._log(f"{module_id}: {message}", "info" if success else "error")
+
+        self._ui_post(finalize)
     
     def _on_generate_all(self):
         """一键生成所有"""
@@ -768,6 +879,11 @@ class MapGeneratorModule(ConsoleModule):
                 continue
             
             config_data = self._collect_module_config(module_id)
+            # 同步到当前配置（后续自动保存要用）
+            if module_id == "1_terrain" or not isinstance(module.data, dict):
+                module.data = config_data
+            else:
+                self._merge_dict(module.data, config_data)
             step = self._create_step(module_id, config_data)
             if step:
                 self.orchestrator.add_step(step)
@@ -781,14 +897,30 @@ class MapGeneratorModule(ConsoleModule):
     async def _execute_generate_all(self):
         """执行一键生成"""
         success, message = await self.orchestrator.generate_all()
-        
-        self.generate_all_button.setEnabled(True)
-        self.stop_button.setEnabled(False)
-        
-        self._log(f"{'✅' if success else '❌'} {message}", "success" if success else "error")
-        
-        if success:
-            self.overall_progress.setValue(100)
+
+        def finalize() -> None:
+            if self.generate_all_button is not None:
+                self.generate_all_button.setEnabled(True)
+            if self.stop_button is not None:
+                self.stop_button.setEnabled(False)
+
+            self._log(f"{'✅' if success else '❌'} {message}", "success" if success else "error")
+
+            # 将编排器结果写回当前配置与 UI（用于下次加载、启动游戏选择）
+            if self.current_config:
+                for module_id, step in self.orchestrator.steps.items():
+                    if module_id in self.current_config.modules:
+                        self.current_config.modules[module_id].status = step.status
+                        self.current_config.modules[module_id].generated_files = list(step.generated_files or [])
+                        self._update_module_status(module_id, step.status)
+
+                if success:
+                    self._auto_save_current_config(reason="一键生成完成")
+
+            if success and self.overall_progress is not None:
+                self.overall_progress.setValue(100)
+
+        self._ui_post(finalize)
     
     def _on_stop(self):
         """停止生成"""
@@ -825,11 +957,22 @@ class MapGeneratorModule(ConsoleModule):
         if name and name != "（无配置）":
             try:
                 self.current_config = self.config_manager.load_config(name)
+                # 用文件名（stem）作为配置 ID，避免 name 与文件名不一致导致保存到别处
+                self.current_config.name = name
                 self.current_config_name = name
                 self._populate_ui_from_config()
                 self._log(f"📂 已加载配置：{name}", "info")
             except Exception as e:
                 self._log(f"❌ 加载配置失败：{e}", "error")
+        else:
+            self.current_config = None
+            self.current_config_name = None
+
+    def _on_refresh_configs(self) -> None:
+        current = self.current_config_name
+        self._load_config_list(select=current)
+        if current:
+            self._log("🔄 已刷新配置列表", "info")
     
     def _on_new_config(self):
         """新建配置"""
@@ -837,34 +980,41 @@ class MapGeneratorModule(ConsoleModule):
             None, "新建配置", "配置名称:"
         )
         if ok and name:
-            self.current_config = self.config_manager.create_default_config(name)
-            self.current_config_name = name
-            self._populate_ui_from_config()
-            self._load_config_list()
-            self.config_combo.setCurrentText(name)
-            self._log(f"➕ 已创建新配置：{name}", "info")
-    
-    def _on_load_config(self):
-        """加载配置"""
-        self._on_config_selected(self.config_combo.currentText())
-    
-    def _on_save_config(self):
-        """保存配置"""
-        if not self.current_config:
-            self._log("❌ 没有可保存的配置", "error")
+            self._create_new_config(name, select_after=True)
+
+    def _create_new_config(self, raw_name: str, *, select_after: bool) -> None:
+        """创建配置并立即落盘，确保能在下拉框看到。"""
+        name = (raw_name or "").strip()
+        if not name:
+            self._log("❌ 配置名称不能为空", "error")
             return
-        
-        # 从 UI 更新配置数据
-        for module_id in self.current_config.modules.keys():
-            config_data = self._collect_module_config(module_id)
-            self.current_config.modules[module_id].data = config_data
-        
-        try:
-            path = self.config_manager.save_config(self.current_config)
-            self._load_config_list()
-            self._log(f"💾 配置已保存：{path}", "success")
-        except Exception as e:
-            self._log(f"❌ 保存失败：{e}", "error")
+
+        safe = name.replace(" ", "_").lower()
+        safe = safe.replace("/", "_").replace("\\", "_").replace(":", "_")
+        safe = safe.replace("..", "_")
+        if not safe:
+            safe = "default_map"
+
+        # 避免覆盖：自动追加后缀
+        candidate = safe
+        i = 2
+        while (self.config_manager.maps_dir / f"{candidate}.json").exists():
+            candidate = f"{safe}_{i}"
+            i += 1
+
+        config_id = candidate
+
+        self.current_config = self.config_manager.create_default_config(config_id)
+        self.current_config.name = config_id
+        self.current_config_name = config_id
+
+        # 先保存，再填充 UI / 列表，保证下拉框能看到（此时不从 UI 同步）
+        self._auto_save_current_config(reason="新建", sync_from_ui=False)
+        self._populate_ui_from_config()
+        self._load_config_list(select=config_id)
+        if self.config_combo and select_after:
+            self.config_combo.setCurrentText(config_id)
+        self._log(f"➕ 已创建新配置：{config_id}", "info")
     
     def _on_orchestrator_log(self, message: str, level: str):
         """编排器日志回调"""
