@@ -19,31 +19,27 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-+
 # Virtual environments
+.venv/
 venv/
 ENV/
 env/
-+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
-+
 # OS
 .DS_Store
 Thumbs.db
-+
 # Project specific
 .tauriai/
 *.log
 logs/
-+
+*.pid
 # Panda3D
 *.bam
 *.pz
-+
 # Don't ignore docs
 !docs/

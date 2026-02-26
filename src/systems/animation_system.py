@@ -23,7 +23,6 @@ class AnimationSystem(SystemBase):
     def __init__(self, game, config: dict = None):
         super().__init__(config)
         self.game = game
-        
         # Panda3D 节点
         self.vehicle_node = None
         self.body_node = None

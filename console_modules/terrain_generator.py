@@ -1,298 +1,317 @@
 """
-Terrain Generator Module - Visual interface for generate_terrain.py
+地形生成模块 - PySide6 (Qt) 版本
 """
-import dearpygui.dearpygui as dpg
-from typing import Optional, List, Any
-from .base_module import ConsoleModule, ModuleRegistry
+
+from __future__ import annotations
+
+import os
+import platform
+import subprocess
+import sys
+from typing import Any, Optional
+
+from PySide6 import QtCore, QtWidgets
+
+from console_modules.base_module import ConsoleModule
 
 
-@ModuleRegistry.register
 class TerrainGeneratorModule(ConsoleModule):
-    """Terrain Generator Module"""
-    
     name = "terrain_generator"
-    display_name = "Terrain Generator"
+    display_name = "地形生成"
     icon = "🛠️"
-    description = "Generate procedural terrain heightmaps"
-    
+    description = "生成程序化地形高度图"
+
     def __init__(self, console_app: Any):
         super().__init__(console_app)
-        self.is_generating = False
-        
-        self.width = 1024
-        self.height = 1024
-        self.seed = 12345
-        self.noise_scale = 0.05
-        self.octaves = 5
-        self.persistence = 0.5
-        self.lacunarity = 2.0
-        self.height_scale = 20.0
-        
-        self.use_track = False
-        self.track_csv = "scripts/track_example.csv"
-        self.corridor_width = 120
-        self.edge_falloff = 50
-        
-        self.output_name = ""
-        
-        self.status_text = None
-        self.progress_bar = None
-        self.generate_button = None
-        self.log_messages: List[str] = []
-    
-    def build_ui(self, parent: Any) -> None:
-        """Build UI"""
-        with dpg.group(parent=parent, horizontal=False):
-            dpg.add_text("Terrain Parameters")
-            dpg.add_separator()
-            
-            dpg.add_text("Basic Parameters:")
-            with dpg.group(horizontal=True):
-                dpg.add_input_int(label="Width (px)", default_value=1024, width=120,
-                                 callback=lambda s, a: setattr(self, 'width', a))
-                dpg.add_input_int(label="Height (px)", default_value=1024, width=120,
-                                 callback=lambda s, a: setattr(self, 'height', a))
-                dpg.add_input_int(label="Seed", default_value=12345, width=120,
-                                 callback=lambda s, a: setattr(self, 'seed', a))
-            
-            dpg.add_spacer(height=10)
-            
-            dpg.add_text("Noise Parameters:")
-            with dpg.group(horizontal=True):
-                dpg.add_input_float(label="Noise Scale", default_value=0.05, width=120,
-                                   callback=lambda s, a: setattr(self, 'noise_scale', a))
-                dpg.add_input_int(label="Octaves", default_value=5, min_value=1, max_value=10, width=120,
-                                 callback=lambda s, a: setattr(self, 'octaves', a))
-                dpg.add_input_float(label="Persistence", default_value=0.5, min_value=0.1, max_value=1.0, width=120,
-                                   callback=lambda s, a: setattr(self, 'persistence', a))
-                dpg.add_input_float(label="Lacunarity", default_value=2.0, width=120,
-                                   callback=lambda s, a: setattr(self, 'lacunarity', a))
-            
-            dpg.add_spacer(height=10)
-            
-            dpg.add_text("Height Parameters:")
-            with dpg.group(horizontal=True):
-                dpg.add_input_float(label="Height Scale", default_value=20.0, width=120,
-                                   callback=lambda s, a: setattr(self, 'height_scale', a))
-            
-            dpg.add_spacer(height=15)
-            
-            dpg.add_text("Track Corridor (Optional):")
-            self.use_track_check = dpg.add_checkbox(
-                label="Enable Track Flattening",
-                default_value=False,
-                callback=lambda s, a: setattr(self, 'use_track', a)
-            )
-            
-            def on_track_toggle(sender, app_data):
-                dpg.configure_item(self.track_options_group, enabled=app_data)
-                self.use_track = app_data
-            
-            dpg.configure_item(self.use_track_check, callback=on_track_toggle)
-            
-            with dpg.group(enabled=False) as self.track_options_group:
-                with dpg.group(horizontal=True):
-                    self.track_csv_input = dpg.add_input_text(
-                        label="CSV File",
-                        default_value="scripts/track_example.csv",
-                        width=300,
-                        callback=lambda s, a: setattr(self, 'track_csv', a)
-                    )
-                    dpg.add_button(label="Browse", callback=self._browse_track_file)
-                
-                with dpg.group(horizontal=True):
-                    dpg.add_input_int(label="Corridor Width (px)", default_value=120, width=120,
-                                     callback=lambda s, a: setattr(self, 'corridor_width', a))
-                    dpg.add_input_int(label="Edge Falloff (px)", default_value=50, width=120,
-                                     callback=lambda s, a: setattr(self, 'edge_falloff', a))
-            
-            dpg.add_spacer(height=15)
-            
-            dpg.add_text("Output Filename:")
-            with dpg.group(horizontal=True):
-                self.output_name_input = dpg.add_input_text(
-                    label="",
-                    default_value="generated_terrain",
-                    width=250,
-                    callback=lambda s, a: setattr(self, 'output_name', a)
-                )
-                dpg.add_text("(without extension)", color=(150, 150, 150, 255))
-            
-            dpg.add_spacer(height=20)
-            
-            dpg.add_text("Status:", color=(200, 200, 200, 255))
-            self.status_text = dpg.add_text("Ready", color=(0, 255, 0, 255))
-            
-            self.progress_bar = dpg.add_progress_bar(default_value=0.0, width=-1)
-            dpg.configure_item(self.progress_bar, show=False)
-            
-            dpg.add_spacer(height=15)
-            
-            with dpg.group(horizontal=True):
-                self.generate_button = dpg.add_button(
-                    label="Generate Terrain",
-                    width=150,
-                    height=40,
-                    callback=self._generate_terrain
-                )
-                dpg.add_button(
-                    label="Open Output Dir",
-                    width=150,
-                    callback=self._open_output_dir
-                )
-                dpg.add_button(
-                    label="View Docs",
-                    width=120,
-                    callback=self._view_docs
-                )
-            
-            dpg.add_spacer(height=15)
-            dpg.add_separator()
-            dpg.add_spacer(height=10)
-            
-            dpg.add_text("Generation Log:", color=(200, 200, 200, 255))
-            with dpg.child_window(height=150, border=True, autosize_x=False):
-                self.log_window = dpg.add_text("", wrap=600)
-    
-    def _browse_track_file(self, sender=None, app_data=None) -> None:
-        """Browse track CSV file"""
-        self.log("File picker not implemented, please enter path manually", "info")
-    
-    def _generate_terrain(self, sender=None, app_data=None) -> None:
-        """Generate terrain"""
-        if self.is_generating:
-            self.log("Terrain generation in progress", "warning")
-            return
-        
-        if not self.output_name:
-            self.log("Please enter output filename", "error")
-            return
-        
-        self.is_generating = True
-        dpg.configure_item(self.generate_button, enabled=False)
-        dpg.configure_item(self.progress_bar, show=True)
-        dpg.configure_item(self.status_text, default_value="Generating...", color=(255, 200, 0, 255))
-        
-        cmd_parts = [
-            "python", "scripts/generate_terrain.py",
-            f"--width={self.width}",
-            f"--height={self.height}",
-            f"--seed={self.seed}",
-            f"--name={self.output_name}",
-            f"--noise-scale={self.noise_scale}",
-            f"--octaves={self.octaves}",
-            f"--persistence={self.persistence}",
-            f"--lacunarity={self.lacunarity}",
-            f"--height-scale={self.height_scale}",
-        ]
-        
-        if self.use_track:
-            cmd_parts.extend([
-                f"--track-csv={self.track_csv}",
-                f"--corridor-width-px={self.corridor_width}",
-                f"--edge-falloff-px={self.edge_falloff}",
-            ])
-        
-        command = " ".join(cmd_parts)
-        self.log(f"Command: {command}", "info")
-        
-        process_mgr = self.get_process_manager()
-        if process_mgr:
-            import asyncio
-            
-            def on_output(line: str):
-                self.log(line, "info")
-                if "DONE" in line or "Complete" in line:
-                    dpg.configure_item(self.progress_bar, default_value=1.0)
-            
-            async def run():
-                result = await process_mgr.run_command(
-                    "terrain_gen",
-                    command,
-                    callback=on_output,
-                    timeout=300.0
-                )
-                
-                if result.status.value == "completed":
-                    dpg.configure_item(self.status_text, default_value="Success!", color=(0, 255, 0, 255))
-                    self.log("Terrain generation complete!", "success")
-                else:
-                    dpg.configure_item(self.status_text, default_value=f"Failed: {result.status.value}", color=(255, 0, 0, 255))
-                    self.log(f"Generation failed: {result.stderr}", "error")
-                
-                dpg.configure_item(self.progress_bar, show=False)
-                dpg.configure_item(self.generate_button, enabled=True)
-                self.is_generating = False
-            
-            if hasattr(self.console_app, 'run_async'):
-                self.console_app.run_async(run())
-            else:
-                import subprocess
-                try:
-                    self.log("Starting generation...", "info")
-                    proc = subprocess.Popen(
-                        command,
-                        shell=True,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True
-                    )
-                    
-                    for line in proc.stdout:
-                        self.log(line.strip(), "info")
-                    
-                    proc.wait()
-                    if proc.returncode == 0:
-                        dpg.configure_item(self.status_text, default_value="Success!", color=(0, 255, 0, 255))
-                        self.log("Terrain generation complete!", "success")
-                    else:
-                        dpg.configure_item(self.status_text, default_value="Failed", color=(255, 0, 0, 255))
-                        self.log("Generation failed", "error")
-                except Exception as e:
-                    self.log(f"Generation failed: {e}", "error")
-                    dpg.configure_item(self.status_text, default_value=f"Error: {e}", color=(255, 0, 0, 255))
-                finally:
-                    dpg.configure_item(self.generate_button, enabled=True)
-                    dpg.configure_item(self.progress_bar, show=False)
-                    self.is_generating = False
-        else:
-            self.log("Process manager not initialized", "error")
-            self.is_generating = False
-            dpg.configure_item(self.generate_button, enabled=True)
-    
-    def _open_output_dir(self, sender=None, app_data=None) -> None:
-        """Open output directory"""
-        import subprocess
-        output_dir = "res/terrain"
-        import os
-        if os.path.exists(output_dir):
-            subprocess.run(["open", output_dir] if os.uname().sysname == "Darwin" else ["xdg-open", output_dir])
-            self.log(f"Opened directory: {output_dir}", "info")
-        else:
-            self.log(f"Directory not found: {output_dir}", "warning")
-    
-    def _view_docs(self, sender=None, app_data=None) -> None:
-        """View documentation"""
-        self.log("See README.md for terrain generation docs", "info")
-    
-    def log(self, message: str, level: str = "info") -> None:
-        """Log message to UI"""
-        self.log_messages.append(f"[{level.upper()}] {message}")
-        if len(self.log_messages) > 50:
-            self.log_messages = self.log_messages[-50:]
-        
-        if hasattr(self, 'log_window'):
-            dpg.configure_item(self.log_window, default_value="\n".join(self.log_messages))
-        
+        self.process: Optional[QtCore.QProcess] = None
+
+        # UI refs
+        self.width_edit: Optional[QtWidgets.QLineEdit] = None
+        self.height_edit: Optional[QtWidgets.QLineEdit] = None
+        self.seed_edit: Optional[QtWidgets.QLineEdit] = None
+        self.noise_scale_edit: Optional[QtWidgets.QLineEdit] = None
+        self.octaves_edit: Optional[QtWidgets.QLineEdit] = None
+        self.persistence_edit: Optional[QtWidgets.QLineEdit] = None
+        self.lacunarity_edit: Optional[QtWidgets.QLineEdit] = None
+        self.height_scale_edit: Optional[QtWidgets.QLineEdit] = None
+        self.output_edit: Optional[QtWidgets.QLineEdit] = None
+
+        self.track_check: Optional[QtWidgets.QCheckBox] = None
+        self.track_csv_edit: Optional[QtWidgets.QLineEdit] = None
+        self.corridor_edit: Optional[QtWidgets.QLineEdit] = None
+        self.edge_edit: Optional[QtWidgets.QLineEdit] = None
+        self.track_group: Optional[QtWidgets.QGroupBox] = None
+
+        self.log_text: Optional[QtWidgets.QTextEdit] = None
+        self.status_label: Optional[QtWidgets.QLabel] = None
+        self.progress_bar: Optional[QtWidgets.QProgressBar] = None
+        self.generate_button: Optional[QtWidgets.QPushButton] = None
+
+        self._log_file = None
+
+    def build_ui(self, parent) -> None:
+        layout: QtWidgets.QVBoxLayout = parent
+
+        title = QtWidgets.QLabel("🛠️ 地形参数配置")
+        font = title.font()
+        font.setPointSize(22)
+        font.setBold(True)
+        title.setFont(font)
+        layout.addWidget(title)
+        layout.addWidget(self._hline())
+
+        # Basic params
+        basic = QtWidgets.QGroupBox("基本参数")
+        b = QtWidgets.QFormLayout(basic)
+        b.setLabelAlignment(QtCore.Qt.AlignLeft)
+        self.width_edit = QtWidgets.QLineEdit("1024")
+        self.height_edit = QtWidgets.QLineEdit("1024")
+        self.seed_edit = QtWidgets.QLineEdit("12345")
+        b.addRow("宽度 (px):", self.width_edit)
+        b.addRow("高度 (px):", self.height_edit)
+        b.addRow("种子:", self.seed_edit)
+        layout.addWidget(basic)
+
+        noise = QtWidgets.QGroupBox("噪声参数")
+        n = QtWidgets.QFormLayout(noise)
+        self.noise_scale_edit = QtWidgets.QLineEdit("0.05")
+        self.octaves_edit = QtWidgets.QLineEdit("5")
+        self.persistence_edit = QtWidgets.QLineEdit("0.5")
+        self.lacunarity_edit = QtWidgets.QLineEdit("2.0")
+        n.addRow("噪声缩放:", self.noise_scale_edit)
+        n.addRow("八度音:", self.octaves_edit)
+        n.addRow("持久性:", self.persistence_edit)
+        n.addRow("Lacunarity:", self.lacunarity_edit)
+        layout.addWidget(noise)
+
+        height = QtWidgets.QGroupBox("高度参数")
+        h = QtWidgets.QFormLayout(height)
+        self.height_scale_edit = QtWidgets.QLineEdit("20.0")
+        h.addRow("高度缩放:", self.height_scale_edit)
+        layout.addWidget(height)
+
+        out = QtWidgets.QGroupBox("输出")
+        o = QtWidgets.QFormLayout(out)
+        self.output_edit = QtWidgets.QLineEdit("generated_terrain")
+        o.addRow("输出文件名:", self.output_edit)
+        layout.addWidget(out)
+
+        # Track options
+        self.track_group = QtWidgets.QGroupBox("轨道走廊（可选）")
+        t_layout = QtWidgets.QVBoxLayout(self.track_group)
+        self.track_check = QtWidgets.QCheckBox("启用轨道走廊刷平")
+        self.track_check.stateChanged.connect(self._toggle_track_options)
+        t_layout.addWidget(self.track_check)
+
+        form = QtWidgets.QFormLayout()
+        self.track_csv_edit = QtWidgets.QLineEdit("scripts/track_example.csv")
+        self.corridor_edit = QtWidgets.QLineEdit("120")
+        self.edge_edit = QtWidgets.QLineEdit("50")
+        form.addRow("赛道 CSV:", self.track_csv_edit)
+        form.addRow("走廊宽度(px):", self.corridor_edit)
+        form.addRow("边缘衰减(px):", self.edge_edit)
+        t_layout.addLayout(form)
+        self._set_track_form_enabled(False)
+        layout.addWidget(self.track_group)
+
+        # Status
+        status = QtWidgets.QGroupBox("状态")
+        s = QtWidgets.QHBoxLayout(status)
+        self.status_label = QtWidgets.QLabel("● 就绪")
+        self.status_label.setStyleSheet("color: #00ff00; font-size: 16px;")
+        self.progress_bar = QtWidgets.QProgressBar()
+        self.progress_bar.setRange(0, 1)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setTextVisible(False)
+        s.addWidget(self.status_label, 0)
+        s.addWidget(self.progress_bar, 1)
+        layout.addWidget(status)
+
+        # Buttons
+        btns = QtWidgets.QHBoxLayout()
+        self.generate_button = QtWidgets.QPushButton("🛠️ 生成地形")
+        self.generate_button.setStyleSheet("background-color: #28a745; padding: 10px 14px; border-radius: 10px;")
+        self.generate_button.clicked.connect(self._generate_terrain)
+        open_dir = QtWidgets.QPushButton("📁 打开输出目录")
+        open_dir.clicked.connect(self._open_output_dir)
+        docs = QtWidgets.QPushButton("📖 查看文档")
+        docs.clicked.connect(self._view_docs)
+        btns.addWidget(self.generate_button)
+        btns.addWidget(open_dir)
+        btns.addWidget(docs)
+        btns.addStretch(1)
+        layout.addLayout(btns)
+
+        # Logs
+        logs = QtWidgets.QGroupBox("生成日志")
+        l = QtWidgets.QVBoxLayout(logs)
+        self.log_text = QtWidgets.QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setMinimumHeight(180)
+        l.addWidget(self.log_text)
+        layout.addWidget(logs)
+
+    def _hline(self) -> QtWidgets.QFrame:
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        line.setStyleSheet("color: #333333;")
+        return line
+
+    def _set_track_form_enabled(self, enabled: bool) -> None:
+        for w in (self.track_csv_edit, self.corridor_edit, self.edge_edit):
+            if w is not None:
+                w.setEnabled(enabled)
+
+    def _toggle_track_options(self) -> None:
+        enabled = self.track_check is not None and self.track_check.isChecked()
+        self._set_track_form_enabled(enabled)
+
+    def _append_log(self, message: str, level: str = "info") -> None:
+        import datetime
+
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+        line = f"[{timestamp}] [{level.upper()}] {message}"
+        if self.log_text is not None:
+            self.log_text.append(line)
         super().log(message, level)
-    
+
+    def _generate_terrain(self) -> None:
+        if self.process is not None and self.process.state() != QtCore.QProcess.NotRunning:
+            self._append_log("地形正在生成中", "warning")
+            return
+
+        try:
+            width = int(self.width_edit.text()) if self.width_edit else 1024
+            height = int(self.height_edit.text()) if self.height_edit else 1024
+            seed = int(self.seed_edit.text()) if self.seed_edit else 12345
+            noise_scale = float(self.noise_scale_edit.text()) if self.noise_scale_edit else 0.05
+            octaves = int(self.octaves_edit.text()) if self.octaves_edit else 5
+            persistence = float(self.persistence_edit.text()) if self.persistence_edit else 0.5
+            lacunarity = float(self.lacunarity_edit.text()) if self.lacunarity_edit else 2.0
+            height_scale = float(self.height_scale_edit.text()) if self.height_scale_edit else 20.0
+            output_name = (self.output_edit.text().strip() if self.output_edit else "generated_terrain") or "generated_terrain"
+        except ValueError as e:
+            self._append_log(f"参数格式错误：{e}", "error")
+            return
+
+        args = [
+            "scripts/generate_terrain.py",
+            f"--width={width}",
+            f"--height={height}",
+            f"--seed={seed}",
+            f"--name={output_name}",
+            f"--noise-scale={noise_scale}",
+            f"--octaves={octaves}",
+            f"--persistence={persistence}",
+            f"--lacunarity={lacunarity}",
+            f"--height-scale={height_scale}",
+        ]
+
+        use_track = self.track_check is not None and self.track_check.isChecked()
+        if use_track:
+            track_csv = self.track_csv_edit.text().strip() if self.track_csv_edit else "scripts/track_example.csv"
+            try:
+                corridor = int(self.corridor_edit.text()) if self.corridor_edit else 120
+                edge = int(self.edge_edit.text()) if self.edge_edit else 50
+            except ValueError as e:
+                self._append_log(f"轨道参数格式错误：{e}", "error")
+                return
+            args += [f"--track-csv={track_csv}", f"--corridor-width-px={corridor}", f"--edge-falloff-px={edge}"]
+
+        self._append_log(f"命令：{sys.executable} {' '.join(args)}", "info")
+
+        if self.status_label is not None:
+            self.status_label.setText("● 生成中...")
+            self.status_label.setStyleSheet("color: #ffa500; font-size: 16px;")
+        if self.progress_bar is not None:
+            self.progress_bar.setRange(0, 0)  # busy
+        if self.generate_button is not None:
+            self.generate_button.setEnabled(False)
+
+        logs_dir = self.console_app.get_logs_dir() if hasattr(self.console_app, "get_logs_dir") else os.path.join(os.getcwd(), "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_path = os.path.join(logs_dir, "terrain_gen.log")
+        try:
+            self._log_file = open(log_path, "a", encoding="utf-8")
+        except Exception:
+            self._log_file = None
+
+        self.process = QtCore.QProcess()
+        self.process.setWorkingDirectory(self.console_app.project_root if hasattr(self.console_app, "project_root") else os.getcwd())
+        self.process.setProcessChannelMode(QtCore.QProcess.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self._on_output)
+        self.process.finished.connect(self._on_finished)
+        self.process.start(sys.executable, args)
+
+    def _on_output(self) -> None:
+        if not self.process:
+            return
+        data = bytes(self.process.readAllStandardOutput()).decode(errors="replace")
+        if not data:
+            return
+        for line in data.splitlines():
+            if self._log_file:
+                try:
+                    self._log_file.write(line + "\n")
+                    self._log_file.flush()
+                except Exception:
+                    pass
+            self._append_log(line, "info")
+
+    def _on_finished(self, exit_code: int, exit_status: QtCore.QProcess.ExitStatus) -> None:
+        if self._log_file:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+        self._log_file = None
+
+        if self.generate_button is not None:
+            self.generate_button.setEnabled(True)
+        if self.progress_bar is not None:
+            self.progress_bar.setRange(0, 1)
+            self.progress_bar.setValue(1 if exit_code == 0 else 0)
+
+        if exit_code == 0:
+            self._append_log("地形生成完成！", "success")
+            if self.status_label is not None:
+                self.status_label.setText("● 成功")
+                self.status_label.setStyleSheet("color: #00ff00; font-size: 16px;")
+        else:
+            self._append_log(f"生成失败，退出码：{exit_code}", "error")
+            if self.status_label is not None:
+                self.status_label.setText("● 失败")
+                self.status_label.setStyleSheet("color: #ff4444; font-size: 16px;")
+
+        self.process = None
+
+    def _open_output_dir(self) -> None:
+        output_dir = os.path.join(self.console_app.project_root if hasattr(self.console_app, "project_root") else os.getcwd(), "res", "terrain")
+        if os.path.exists(output_dir):
+            try:
+                system = platform.system()
+                if system == "Darwin":
+                    subprocess.run(["open", output_dir])
+                elif system == "Windows":
+                    os.startfile(output_dir)  # type: ignore[attr-defined]
+                else:
+                    subprocess.run(["xdg-open", output_dir])
+                self._append_log(f"已打开目录：{output_dir}", "info")
+            except Exception as e:
+                self._append_log(f"打开目录失败：{e}", "warning")
+        else:
+            self._append_log(f"目录不存在：{output_dir}", "warning")
+
+    def _view_docs(self) -> None:
+        self._append_log("查看 README.md 了解地形生成文档", "info")
+
     def cleanup(self) -> None:
-        """Cleanup resources"""
-        if self.is_generating:
-            process_mgr = self.get_process_manager()
-            if process_mgr:
-                import asyncio
-                async def cancel():
-                    await process_mgr.kill_process("terrain_gen")
-                if hasattr(self.console_app, 'run_async'):
-                    self.console_app.run_async(cancel())
+        if self.process and self.process.state() != QtCore.QProcess.NotRunning:
+            self.process.kill()
+        if self._log_file:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+        self._log_file = None
+

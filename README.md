@@ -5,10 +5,10 @@
 ## 📚 文档约定
 
 - `README.md`：真源文档（以此为准）
-- `CONSOLE.md`：游戏控制台使用指南
-- `PROJECT_STRUCTURE.md`：项目结构详解
-- `requirement_design.md`：需求与设计概要
-- `tools.md`：工具接口与调用方法
+- `docs/console/CONSOLE.md`：游戏控制台使用指南
+- `docs/console/PROJECT_STRUCTURE.md`：项目结构详解
+- `docs/console/requirement_design.md`：需求与设计概要
+- `docs/console/tools.md`：工具接口与调用方法
 
 ## 🚀 快速开始
 
@@ -24,14 +24,8 @@ python main.py
 ### 方式二：使用游戏控制台（推荐）
 
 ```bash
-# 安装控制台依赖
-pip install dearpygui
-
 # 启动控制台
 python console.py
-
-# 或使用启动脚本
-./start_console.sh
 ```
 
 ## 🎯 功能特性
@@ -148,7 +142,7 @@ vehiclegame/
     └── terrain/
 ```
 
-详细结构见：[`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md)
+详细结构见：[`docs/console/PROJECT_STRUCTURE.md`](docs/console/PROJECT_STRUCTURE.md)
 
 ## 🚗 车辆配置
 
@@ -194,7 +188,7 @@ noise            # 噪声生成
 
 ### 控制台依赖（可选）
 ```txt
-dearpygui        # GUI 框架
+PySide6          # GUI 框架
 ```
 
 ### 安装
@@ -206,14 +200,14 @@ pip install -r requirements.txt
 pip install panda3d numpy scipy opensimplex noise
 
 # 仅控制台
-pip install dearpygui
+pip install PySide6
 ```
 
 ## ✅ 测试
 
 ### 组件测试
 ```bash
-python test_console.py
+python tests/test_console.py
 ```
 
 ### 游戏测试
@@ -225,8 +219,8 @@ python examples/test_complete.py
 
 | 文档 | 说明 |
 |-----|------|
-| [`CONSOLE.md`](CONSOLE.md) | 控制台使用指南 |
-| [`PROJECT_STRUCTURE.md`](PROJECT_STRUCTURE.md) | 项目结构详解 |
+| [`docs/console/CONSOLE.md`](docs/console/CONSOLE.md) | 控制台使用指南 |
+| [`docs/console/PROJECT_STRUCTURE.md`](docs/console/PROJECT_STRUCTURE.md) | 项目结构详解 |
 | [`docs/`](docs/) | 技术文档目录 |
 
 ## 🔧 开发
@@ -235,10 +229,9 @@ python examples/test_complete.py
 
 1. 创建 `console_modules/my_module.py`
 2. 继承 `ConsoleModule` 基类
-3. 使用 `@ModuleRegistry.register` 装饰器
-4. 在 `console_app.py` 中导入
+3. 在 `console_app.py` 的 `_register_modules()` 中导入并注册
 
-详见：[`CONSOLE.md`](CONSOLE.md#扩展开发)
+详见：[`docs/console/CONSOLE.md`](docs/console/CONSOLE.md#扩展开发)
 
 ### 代码风格
 
@@ -248,9 +241,9 @@ python examples/test_complete.py
 
 ## ⚠️ 故障排除
 
-### DearPyGui 启动失败
+### PySide6 未安装/启动失败
 ```bash
-pip install --upgrade dearpygui
+pip install --upgrade PySide6
 ```
 
 ### 游戏无法启动
@@ -259,7 +252,7 @@ pip install --upgrade dearpygui
 python -c "import panda3d"
 
 # 查看日志
-cat game.log
+cat logs/game.log
 ```
 
 ### 地形生成失败

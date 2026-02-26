@@ -9,7 +9,7 @@
 source .venv/bin/activate
 
 # 安装控制台依赖
-pip install dearpygui
+pip install PySide6
 ```
 
 ### 2. 启动控制台
@@ -126,28 +126,20 @@ cp configs/vehicles/sports_car.json configs/vehicles/my_car.json
 
 ## 命令行参数（可选）
 
-控制台支持直接启动游戏：
-
-```bash
-# 使用默认配置启动
-python console.py --launch
-
-# 指定车辆和地形
-python console.py --launch --vehicle sports_car --terrain flat
-```
+当前控制台仅提供 GUI 入口：`python console.py`。
 
 ## 故障排除
 
-### 问题：DearPyGui 启动失败
+### 问题：PySide6 未安装/启动失败
 **解决**:
 ```bash
-pip install --upgrade dearpygui
+pip install --upgrade PySide6
 ```
 
 ### 问题：游戏无法启动
 **检查**:
 1. Panda3D 是否安装：`pip list | grep panda3d`
-2. 查看日志：`cat game.log`
+2. 查看日志：`cat logs/game.log`
 
 ### 问题：地形生成失败
 **检查**:
@@ -160,21 +152,19 @@ pip install --upgrade dearpygui
 
 1. 创建模块文件 `console_modules/my_module.py`:
 ```python
-from console_modules.base_module import ConsoleModule, ModuleRegistry
-import dearpygui.dearpygui as dpg
+from PySide6 import QtWidgets
+from console_modules.base_module import ConsoleModule
 
-@ModuleRegistry.register
 class MyModule(ConsoleModule):
     name = "my_module"
     display_name = "🔧 我的模块"
     
     def build_ui(self, parent):
-        with dpg.group(parent=parent):
-            dpg.add_text("我的功能")
-            # 添加 UI 控件
+        label = QtWidgets.QLabel("我的功能")
+        parent.addWidget(label)
 ```
 
-2. 在 `console_app.py` 中导入并注册:
+2. 在 `console_app.py` 的 `_register_modules()` 中导入并注册:
 ```python
 from console_modules.my_module import MyModule
 

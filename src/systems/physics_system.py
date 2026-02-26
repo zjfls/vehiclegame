@@ -90,18 +90,45 @@ class PhysicsSystem(SystemBase):
     def _smooth_input(self, dt: float, raw_input: VehicleControlInput):
         """平滑输入"""
         self._smoothed_input.throttle = self._smooth_value(
-            dt, self.throttle_smooth, self._smoothed_input.throttle, raw_input.throttle
+            dt,
+            self.throttle_smooth,
+            self._smoothed_input.throttle,
+            raw_input.throttle,
+            clamp_min=0.0,
+            clamp_max=1.0,
         )
         self._smoothed_input.brake = self._smooth_value(
-            dt, self.brake_smooth, self._smoothed_input.brake, raw_input.brake
+            dt,
+            self.brake_smooth,
+            self._smoothed_input.brake,
+            raw_input.brake,
+            clamp_min=0.0,
+            clamp_max=1.0,
         )
         self._smoothed_input.steering = self._smooth_value(
-            dt, self.steering_smooth, self._smoothed_input.steering, raw_input.steering
+            dt,
+            self.steering_smooth,
+            self._smoothed_input.steering,
+            raw_input.steering,
+            clamp_min=-1.0,
+            clamp_max=1.0,
         )
         self._smoothed_input.handbrake = raw_input.handbrake
     
-    def _smooth_value(self, dt: float, smooth_param: dict, current: float, target: float) -> float:
-        """平滑单个值"""
+    def _smooth_value(
+        self,
+        dt: float,
+        smooth_param: dict,
+        current: float,
+        target: float,
+        clamp_min: float = 0.0,
+        clamp_max: float = 1.0,
+    ) -> float:
+        """平滑单个值。
+
+        注意：油门/刹车范围是 [0..1]，但转向需要是 [-1..1]。
+        所以 clamping 范围必须由调用方指定，否则会导致左右转向不对称。
+        """
         delta = target - current
         is_rising = (delta > 0) == (current > 0) or (delta != 0 and current == 0)
         
@@ -109,7 +136,7 @@ class PhysicsSystem(SystemBase):
         max_delta = dt * rate
         
         result = current + max(-max_delta, min(max_delta, delta))
-        return max(0.0, min(1.0, result))
+        return max(float(clamp_min), min(float(clamp_max), result))
     
     def _update_speed(self, dt: float, state: VehicleState):
         """更新速度"""

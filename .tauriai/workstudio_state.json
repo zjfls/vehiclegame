@@ -3,33 +3,166 @@
   "states": {
     "code": {
       "openFiles": [
-        "E:/work/pandavehicle/main.py",
-        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h"
+        "/Users/zhoujie/Documents/work/learn/vehiclegame/src/business/game_world.py",
+        "/Users/zhoujie/Documents/work/learn/vehiclegame/examples/test_import.py",
+        "/Users/zhoujie/Documents/work/learn/vehiclegame/main.py"
       ],
       "panes": [
         {
-          "id": "p-0",
+          "id": "b8ac2f39-74b9-4a76-8cb4-7677db25d515",
           "tabIds": [
-            "E:/work/pandavehicle/main.py",
-            "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h"
+            "/Users/zhoujie/Documents/work/learn/vehiclegame/src/business/game_world.py",
+            "/Users/zhoujie/Documents/work/learn/vehiclegame/examples/test_import.py",
+            "/Users/zhoujie/Documents/work/learn/vehiclegame/main.py"
           ],
-          "activeTabId": "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public/PhysXVehicleManager.h",
+          "activeTabId": "/Users/zhoujie/Documents/work/learn/vehiclegame/src/business/game_world.py",
           "weight": 1.0
         }
       ],
-      "focusedPaneId": "p-0",
+      "focusedPaneId": "b8ac2f39-74b9-4a76-8cb4-7677db25d515",
       "groups": [],
       "expandedDirs": [
-        "E:\\work\\pandavehicle\\.tauriai",
-        "E:\\work\\pandavehicle",
-        "E:/work/pandavehicle",
-        "G:\\UE4SOURCE\\ue4\\Engine\\Plugins\\Runtime\\PhysXVehicles",
-        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles",
-        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source",
-        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles",
-        "G:/UE4SOURCE/ue4/Engine/Plugins/Runtime/PhysXVehicles/Source/PhysXVehicles/Public"
+        "/Users/zhoujie/Documents/work/learn/vehiclegame/res/tex",
+        "/Users/zhoujie/Documents/work/learn/vehiclegame",
+        "/Users/zhoujie/Documents/work/learn/vehiclegame/src"
       ],
-      "splitOpen": false
+      "splitOpen": false,
+      "editorFontSize": 19,
+      "outline": {
+        "files": {
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/src/systems/animation_system.py": {
+            "collapsedKeys": [
+              "method:__init__:23:9:36:33",
+              "method:set_vehicle_node:38:9:50:47",
+              "method:update:52:9:66:108",
+              "method:_update_body_transform:68:9:92:55",
+              "method:_update_wheel:94:9:119:49",
+              "method:create_wheel_visual:121:9:135:21",
+              "method:create_body_visual:137:9:163:20"
+            ],
+            "recentKeys": [],
+            "updatedAtMs": 1771492555802
+          },
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/main.py": {
+            "collapsedKeys": [
+              "method:__init__:29:9:88:70",
+              "method:_register_systems:186:9:194:104",
+              "method:setup_lights:196:9:241:66",
+              "method:setup_terrain:243:9:286:99",
+              "method:setup_environment:288:9:300:37",
+              "method:add_environment_props:302:9:363:83",
+              "function:_get_mouse_xy:501:9:505:20",
+              "function:_sync_debug_camera_from_view:507:9:530:45",
+              "function:_apply_debug_camera:532:9:550:51",
+              "function:_debug_cam_zoom:574:9:581:35",
+              "function:_update_debug_camera:583:9:615:35",
+              "function:_init_camera_position:617:9:626:73",
+              "function:set_key:679:9:681:31",
+              "function:update:757:9:794:25",
+              "function:_update_visuals:796:8:826:53",
+              "function:_update_camera:828:9:856:73",
+              "function:_update_ui:858:9:866:52",
+              "function:exit_game:868:9:873:19",
+              "function:create_vehicle_visuals:880:9:982:76"
+            ],
+            "activeKey": "method:_create_vehicle_config:90:9:184:10",
+            "recentKeys": [
+              "method:_create_vehicle_config:90:9:184:10",
+              "method:__init__:29:9:88:70",
+              "function:_init_camera_position:617:9:626:73"
+            ],
+            "updatedAtMs": 1771844457662
+          },
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/src/business/game_world.py": {
+            "collapsedKeys": [
+              "class:GameWorld:8:7:67:34"
+            ],
+            "activeKey": "class:GameWorld:8:7:67:34",
+            "recentKeys": [
+              "class:GameWorld:8:7:67:34"
+            ],
+            "updatedAtMs": 1771571778849
+          },
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/src/business/vehicle_entity.py": {
+            "collapsedKeys": [
+              "method:__init__:23:9:42:33",
+              "method:_initialize_state:44:9:64:49",
+              "method:register_system:66:9:68:37",
+              "method:get_system:70:9:72:39",
+              "method:update:74:9:125:104",
+              "method:_apply_tire_forces:127:9:129:77",
+              "method:get_wheel_suspension_state:142:9:144:60",
+              "method:set_throttle:164:9:166:64",
+              "method:set_brake:168:9:170:61",
+              "method:set_steering:172:9:174:65",
+              "method:set_handbrake:176:9:178:45"
+            ],
+            "activeKey": "method:__init__:23:9:42:33",
+            "recentKeys": [
+              "method:__init__:23:9:42:33",
+              "class:VehicleEntity:13:7:214:10",
+              "method:get_system:70:9:72:39"
+            ],
+            "updatedAtMs": 1771751325332
+          },
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/src/systems/physics_system.py": {
+            "collapsedKeys": [
+              "method:__init__:19:9:40:53",
+              "method:_init_input_smoothing:42:9:62:10",
+              "method:update:64:9:88:87",
+              "method:_smooth_input:90:9:101:61",
+              "method:_smooth_value:103:9:112:42",
+              "method:_update_speed:114:9:138:30",
+              "method:_update_steering:140:9:149:29",
+              "method:_update_position:151:9:163:31"
+            ],
+            "activeKey": "method:__init__:19:9:40:53",
+            "recentKeys": [
+              "method:__init__:19:9:40:53"
+            ],
+            "updatedAtMs": 1771490762947
+          },
+          "/Users/zhoujie/Documents/work/learn/vehiclegame/scripts/generate_terrain.py": {
+            "collapsedKeys": [
+              "function:start_timer:36:5:39:41",
+              "function:end_timer:42:5:44:61",
+              "function:_require_scipy:47:5:55:51",
+              "function:_import_generator:58:5:78:55",
+              "function:_normalize01:81:5:86:38",
+              "function:_build_fbm:89:5:148:33",
+              "function:_compress_relief:151:5:154:36",
+              "function:_read_track_points:157:5:171:18",
+              "function:_to_pixel_points:174:5:191:15",
+              "function:_draw_polyline:194:5:218:34",
+              "function:draw_line:195:9:213:24",
+              "function:_apply_track_flatten:221:5:252:29",
+              "function:_write_pgm16:255:5:260:30",
+              "function:parse_args:263:5:301:31",
+              "function:main:304:5:403:13",
+              "class:Timer:31:7:33:17"
+            ],
+            "activeKey": "function:start_timer:36:5:39:41",
+            "recentKeys": [
+              "function:start_timer:36:5:39:41",
+              "class:Timer:31:7:33:17",
+              "function:_build_fbm:89:5:148:33",
+              "function:main:304:5:403:13",
+              "function:parse_args:263:5:301:31",
+              "function:_write_pgm16:255:5:260:30",
+              "function:_apply_track_flatten:221:5:252:29",
+              "function:_draw_polyline:194:5:218:34",
+              "function:_to_pixel_points:174:5:191:15",
+              "function:_read_track_points:157:5:171:18",
+              "function:_compress_relief:151:5:154:36",
+              "function:_normalize01:81:5:86:38",
+              "function:_import_generator:58:5:78:55",
+              "function:_require_scipy:47:5:55:51",
+              "function:end_timer:42:5:44:61"
+            ],
+            "updatedAtMs": 1771567187916
+          }
+        }
+      }
     }
   }
 }

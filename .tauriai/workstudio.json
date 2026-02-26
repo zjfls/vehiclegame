@@ -1,9 +1,8 @@
 {
-  "id": "b6388a0e-65e2-4a49-baa4-0b9dcd9d8a0e",
+  "id": "9299d91e-9a39-471c-b872-655dfbf44f6c",
   "kind": "code",
-  "mainFolder": "E:\\work\\pandavehicle",
+  "mainFolder": "/Users/zhoujie/Documents/work/learn/vehiclegame",
   "folders": [
-    "E:\\work\\pandavehicle",
-    "G:\\UE4SOURCE\\ue4\\Engine\\Plugins\\Runtime\\PhysXVehicles"
+    "/Users/zhoujie/Documents/work/learn/vehiclegame"
   ]
 }

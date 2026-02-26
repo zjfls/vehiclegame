@@ -46,7 +46,7 @@ class ConsoleModule(ABC):
         构建 UI
         
         Args:
-            parent: 父容器（DearPyGui 的 group 或 window）
+            parent: 父容器（由 GUI 框架提供的容器控件）
         """
         pass
     

@@ -1,291 +1,349 @@
 """
-Game Launcher Module - Support multiple vehicle configurations
+游戏启动模块 - PySide6 (Qt) 版本
 """
-import dearpygui.dearpygui as dpg
-from typing import List, Dict, Any, Optional
-from .base_module import ConsoleModule, ModuleRegistry
+
+from __future__ import annotations
+
+import os
+import platform
+import subprocess
+import sys
+from typing import Any, List, Optional
+
+from PySide6 import QtCore, QtWidgets
+
+from console_modules.base_module import ConsoleModule
 
 
-@ModuleRegistry.register
 class GameLauncherModule(ConsoleModule):
-    """Game Launcher Module"""
-    
     name = "game_launcher"
-    display_name = "Launch Game"
+    display_name = "启动游戏"
     icon = "🚀"
-    description = "Launch vehicle game with multiple vehicle configs"
-    
+    description = "启动车辆游戏，支持多车辆配置"
+
     def __init__(self, console_app: Any):
         super().__init__(console_app)
         self.vehicle_configs: List[str] = []
         self.terrain_configs: List[str] = []
         self.selected_vehicle: Optional[str] = None
         self.selected_terrain: Optional[str] = None
-        self.is_running: bool = False
-        self.game_process_id: Optional[str] = None
-        
-        self.vehicle_combo = None
-        self.terrain_combo = None
-        self.fullscreen_check = None
-        self.debug_check = None
-        self.status_text = None
-    
-    def build_ui(self, parent: Any) -> None:
-        """Build UI"""
-        with dpg.group(parent=parent, horizontal=False):
-            dpg.add_text("Game Launch Configuration")
-            dpg.add_separator()
-            
-            dpg.add_text("Vehicle Config:")
-            with dpg.group(horizontal=True):
-                self.vehicle_combo = dpg.add_combo(
-                    label="",
-                    width=200,
-                    callback=self._on_vehicle_selected
-                )
-                dpg.add_button(label="Refresh", callback=self._refresh_configs)
-                dpg.add_button(label="Edit", callback=self._edit_vehicle_config)
-            
-            dpg.add_spacer(height=10)
-            
-            dpg.add_text("Terrain Config:")
-            with dpg.group(horizontal=True):
-                self.terrain_combo = dpg.add_combo(
-                    label="",
-                    width=200,
-                    callback=self._on_terrain_selected
-                )
-                dpg.add_button(label="Refresh", callback=self._refresh_configs)
-                dpg.add_button(label="Generate", callback=self._open_terrain_generator)
-            
-            dpg.add_spacer(height=15)
-            
-            dpg.add_text("Game Settings:")
-            self.fullscreen_check = dpg.add_checkbox(label="Fullscreen", default_value=False)
-            self.debug_check = dpg.add_checkbox(label="Debug Mode", default_value=False)
-            dpg.add_checkbox(label="Shadows", default_value=True)
-            
-            dpg.add_spacer(height=15)
-            
-            with dpg.group(horizontal=True):
-                dpg.add_text("Resolution:")
-                resolution_combo = dpg.add_combo(
-                    items=["1280x720", "1920x1080", "2560x1440", "3840x2160"],
-                    default_value="1280x720",
-                    width=150
-                )
-            
-            dpg.add_spacer(height=20)
-            
-            dpg.add_text("Status:", color=(200, 200, 200, 255))
-            self.status_text = dpg.add_text("Ready", color=(0, 255, 0, 255))
-            
-            dpg.add_spacer(height=15)
-            
-            with dpg.group(horizontal=True):
-                self.start_button = dpg.add_button(
-                    label="Start Game",
-                    width=150,
-                    height=40,
-                    callback=self._start_game
-                )
-                dpg.add_button(
-                    label="Stop Game",
-                    width=150,
-                    height=40,
-                    callback=self._stop_game,
-                    enabled=False
-                )
-                dpg.add_button(
-                    label="View Log",
-                    width=120,
-                    callback=self._view_log
-                )
-            
-            dpg.add_spacer(height=10)
-            dpg.add_separator()
-            dpg.add_spacer(height=10)
-            
-            dpg.add_text("Vehicle Preview:", color=(200, 200, 200, 255))
-            self.vehicle_info_text = dpg.add_text("Please select a vehicle", color=(150, 150, 150, 255))
-        
+
+        self.process: Optional[QtCore.QProcess] = None
+        self._game_log_path: Optional[str] = None
+        self._log_file = None
+
+        # UI refs
+        self.vehicle_combo: Optional[QtWidgets.QComboBox] = None
+        self.terrain_combo: Optional[QtWidgets.QComboBox] = None
+        self.debug_check: Optional[QtWidgets.QCheckBox] = None
+        self.fullscreen_check: Optional[QtWidgets.QCheckBox] = None
+        self.shadows_check: Optional[QtWidgets.QCheckBox] = None
+        self.resolution_combo: Optional[QtWidgets.QComboBox] = None
+        self.status_label: Optional[QtWidgets.QLabel] = None
+        self.vehicle_info_label: Optional[QtWidgets.QLabel] = None
+        self.start_button: Optional[QtWidgets.QPushButton] = None
+        self.stop_button: Optional[QtWidgets.QPushButton] = None
+
+    def build_ui(self, parent) -> None:
+        # parent is QVBoxLayout
+        layout: QtWidgets.QVBoxLayout = parent
+
+        title = QtWidgets.QLabel("🚀 游戏启动配置")
+        font = title.font()
+        font.setPointSize(22)
+        font.setBold(True)
+        title.setFont(font)
+        layout.addWidget(title)
+
+        layout.addWidget(self._hline())
+
+        layout.addLayout(self._build_config_row("车辆配置:", is_vehicle=True))
+        layout.addLayout(self._build_config_row("地形配置:", is_vehicle=False))
+
+        # Settings
+        settings = QtWidgets.QGroupBox("游戏设置")
+        s_layout = QtWidgets.QVBoxLayout(settings)
+        self.fullscreen_check = QtWidgets.QCheckBox("全屏模式")
+        self.debug_check = QtWidgets.QCheckBox("调试模式")
+        self.shadows_check = QtWidgets.QCheckBox("启用阴影")
+        self.shadows_check.setChecked(True)
+        s_layout.addWidget(self.fullscreen_check)
+        s_layout.addWidget(self.debug_check)
+        s_layout.addWidget(self.shadows_check)
+        layout.addWidget(settings)
+
+        # Resolution
+        res_row = QtWidgets.QHBoxLayout()
+        res_row.addWidget(QtWidgets.QLabel("分辨率:"), 0)
+        self.resolution_combo = QtWidgets.QComboBox()
+        self.resolution_combo.addItems(["1280x720", "1920x1080", "2560x1440", "3840x2160"])
+        self.resolution_combo.setCurrentText("1280x720")
+        res_row.addWidget(self.resolution_combo, 1)
+        res_row.addStretch(2)
+        layout.addLayout(res_row)
+
+        # Status
+        status_box = QtWidgets.QGroupBox("状态")
+        st_layout = QtWidgets.QVBoxLayout(status_box)
+        self.status_label = QtWidgets.QLabel("● 就绪")
+        self.status_label.setStyleSheet("color: #00ff00; font-size: 16px;")
+        st_layout.addWidget(self.status_label)
+        layout.addWidget(status_box)
+
+        # Buttons
+        btn_row = QtWidgets.QHBoxLayout()
+        self.start_button = QtWidgets.QPushButton("▶️ 启动游戏")
+        self.start_button.setStyleSheet("background-color: #28a745; padding: 10px 14px; border-radius: 10px;")
+        self.start_button.clicked.connect(self._start_game)
+        self.stop_button = QtWidgets.QPushButton("⏹️ 停止游戏")
+        self.stop_button.setEnabled(False)
+        self.stop_button.setStyleSheet("background-color: #dc3545; padding: 10px 14px; border-radius: 10px;")
+        self.stop_button.clicked.connect(self._stop_game)
+        view_log = QtWidgets.QPushButton("📄 查看日志")
+        view_log.clicked.connect(self._view_log)
+        btn_row.addWidget(self.start_button)
+        btn_row.addWidget(self.stop_button)
+        btn_row.addWidget(view_log)
+        btn_row.addStretch(1)
+        layout.addLayout(btn_row)
+
+        # Preview
+        preview = QtWidgets.QGroupBox("车辆预览")
+        p_layout = QtWidgets.QVBoxLayout(preview)
+        self.vehicle_info_label = QtWidgets.QLabel("请选择一个车辆配置")
+        self.vehicle_info_label.setStyleSheet("color: #aaaaaa;")
+        p_layout.addWidget(self.vehicle_info_label)
+        layout.addWidget(preview)
+
         self._refresh_configs()
-    
-    def _refresh_configs(self, sender=None, app_data=None) -> None:
-        """Refresh config list"""
+
+    def _hline(self) -> QtWidgets.QFrame:
+        line = QtWidgets.QFrame()
+        line.setFrameShape(QtWidgets.QFrame.HLine)
+        line.setStyleSheet("color: #333333;")
+        return line
+
+    def _build_config_row(self, label: str, *, is_vehicle: bool) -> QtWidgets.QHBoxLayout:
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(QtWidgets.QLabel(label), 0)
+        combo = QtWidgets.QComboBox()
+        combo.setMinimumWidth(220)
+        row.addWidget(combo, 0)
+
+        refresh = QtWidgets.QPushButton("🔄 刷新")
+        refresh.clicked.connect(self._refresh_configs)
+        row.addWidget(refresh, 0)
+
+        if is_vehicle:
+            edit = QtWidgets.QPushButton("✏️ 编辑")
+            edit.clicked.connect(self._edit_vehicle_config)
+            row.addWidget(edit, 0)
+            self.vehicle_combo = combo
+            self.vehicle_combo.currentTextChanged.connect(self._on_vehicle_selected)
+        else:
+            gen = QtWidgets.QPushButton("🛠️ 生成")
+            gen.clicked.connect(self._open_terrain_generator)
+            row.addWidget(gen, 0)
+            self.terrain_combo = combo
+            self.terrain_combo.currentTextChanged.connect(self._on_terrain_selected)
+
+        row.addStretch(1)
+        return row
+
+    def _refresh_configs(self) -> None:
         config_mgr = self.get_config_manager()
         if not config_mgr:
-            self.log("Config manager not initialized", "error")
+            self.log("配置管理器未初始化", "error")
             return
-        
+
         self.vehicle_configs = config_mgr.list_configs("vehicles")
-        if self.vehicle_combo:
-            dpg.configure_item(self.vehicle_combo, items=self.vehicle_configs)
-            if self.vehicle_configs and not self.selected_vehicle:
-                self.selected_vehicle = self.vehicle_configs[0]
-                dpg.configure_item(self.vehicle_combo, default_value=self.selected_vehicle)
+        if self.vehicle_combo is not None:
+            self.vehicle_combo.blockSignals(True)
+            self.vehicle_combo.clear()
+            self.vehicle_combo.addItems(self.vehicle_configs)
+            self.vehicle_combo.blockSignals(False)
+            if self.vehicle_configs:
+                if self.selected_vehicle not in self.vehicle_configs:
+                    self.selected_vehicle = self.vehicle_configs[0]
+                self.vehicle_combo.setCurrentText(self.selected_vehicle)
                 self._update_vehicle_info()
-        
+
         self.terrain_configs = config_mgr.list_configs("terrain")
-        if self.terrain_combo:
-            dpg.configure_item(self.terrain_combo, items=self.terrain_configs)
-            if self.terrain_configs and not self.selected_terrain:
-                self.selected_terrain = self.terrain_configs[0]
-                dpg.configure_item(self.terrain_combo, default_value=self.selected_terrain)
-        
-        self.log(f"Loaded {len(self.vehicle_configs)} vehicle configs", "info")
-    
-    def _on_vehicle_selected(self, sender, app_data) -> None:
-        """Vehicle selection changed"""
-        self.selected_vehicle = app_data
+        if self.terrain_combo is not None:
+            self.terrain_combo.blockSignals(True)
+            self.terrain_combo.clear()
+            self.terrain_combo.addItems(self.terrain_configs)
+            self.terrain_combo.blockSignals(False)
+            if self.terrain_configs:
+                if self.selected_terrain not in self.terrain_configs:
+                    self.selected_terrain = self.terrain_configs[0]
+                self.terrain_combo.setCurrentText(self.selected_terrain)
+
+        self.log(f"已加载 {len(self.vehicle_configs)} 个车辆配置", "info")
+
+    def _on_vehicle_selected(self, value: str) -> None:
+        self.selected_vehicle = value or None
         self._update_vehicle_info()
-    
-    def _on_terrain_selected(self, sender, app_data) -> None:
-        """Terrain selection changed"""
-        self.selected_terrain = app_data
-    
+
+    def _on_terrain_selected(self, value: str) -> None:
+        self.selected_terrain = value or None
+
     def _update_vehicle_info(self) -> None:
-        """Update vehicle info preview"""
-        if not self.selected_vehicle:
+        if not self.selected_vehicle or self.vehicle_info_label is None:
             return
-        
+
         config_mgr = self.get_config_manager()
         if not config_mgr:
             return
-        
+
         try:
             config = config_mgr.load_config("vehicles", self.selected_vehicle)
             name = config.get("name", self.selected_vehicle)
             mass = config.get("vehicle_mass", "N/A")
             max_speed = config.get("physics", {}).get("max_speed", "N/A")
-            
-            info = f"{name} | Mass: {mass}kg | Max Speed: {max_speed}km/h"
-            if self.vehicle_info_text:
-                dpg.configure_item(self.vehicle_info_text, default_value=info)
+            info = f"{name} | 质量：{mass}kg | 最高速度：{max_speed}km/h"
+            self.vehicle_info_label.setText(info)
         except Exception as e:
-            if self.vehicle_info_text:
-                dpg.configure_item(self.vehicle_info_text, default_value=f"Load failed: {e}")
-    
-    def _start_game(self, sender=None, app_data=None) -> None:
-        """Start game"""
-        if self.is_running:
-            self.log("Game is already running", "warning")
+            self.vehicle_info_label.setText(f"加载失败：{e}")
+
+    def _start_game(self) -> None:
+        if self.process is not None and self.process.state() != QtCore.QProcess.NotRunning:
+            self.log("游戏已在运行", "warning")
             return
-        
+
         if not self.selected_vehicle:
-            self.log("Please select a vehicle config", "error")
+            self.log("请选择一个车辆配置", "error")
             return
-        
-        import sys
-        cmd_parts = [sys.executable, "main.py"]
-        
-        if self.selected_vehicle:
-            cmd_parts.extend(["--vehicle", self.selected_vehicle])
-        
+
+        args = ["main.py", "--vehicle", self.selected_vehicle]
         if self.selected_terrain:
-            cmd_parts.extend(["--terrain", self.selected_terrain])
-        
-        if self.debug_check and dpg.get_value(self.debug_check):
-            cmd_parts.append("--debug")
-        
-        command = " ".join(cmd_parts)
-        self.game_process_id = "game_session"
-        
-        self.log(f"Starting game: {command}", "info")
-        dpg.configure_item(self.status_text, default_value="Starting...", color=(255, 200, 0, 255))
-        
-        process_mgr = self.get_process_manager()
-        if process_mgr:
-            import asyncio
-            
-            def on_output(line: str):
-                self.log(f"[Game] {line}", "info")
-            
-            async def start():
-                result = await process_mgr.run_command(
-                    self.game_process_id,
-                    command,
-                    callback=on_output,
-                    cwd=None
-                )
-                
-                if result.status.value == "completed":
-                    self.log("Game exited", "info")
-                    dpg.configure_item(self.status_text, default_value="Exited", color=(150, 150, 150, 255))
-                else:
-                    self.log(f"Game error: {result.stderr}", "error")
-                    dpg.configure_item(self.status_text, default_value=f"Error: {result.status.value}", color=(255, 0, 0, 255))
-                
-                self.is_running = False
-                if self.start_button:
-                    dpg.configure_item(self.start_button, enabled=True)
-            
-            if hasattr(self.console_app, 'run_async'):
-                self.console_app.run_async(start())
-            else:
-                import subprocess
-                try:
-                    self.process = subprocess.Popen(command, shell=True)
-                    self.is_running = True
-                    dpg.configure_item(self.start_button, enabled=False)
-                    dpg.configure_item(self.status_text, default_value="Running", color=(0, 255, 0, 255))
-                    self.log("Game started", "success")
-                except Exception as e:
-                    self.log(f"Start failed: {e}", "error")
-                    dpg.configure_item(self.status_text, default_value=f"Failed: {e}", color=(255, 0, 0, 255))
-    
-    def _stop_game(self, sender=None, app_data=None) -> None:
-        """Stop game"""
-        if not self.is_running:
-            self.log("Game is not running", "warning")
-            return
-        
-        process_mgr = self.get_process_manager()
-        if process_mgr and self.game_process_id:
-            import asyncio
-            async def stop():
-                await process_mgr.kill_process(self.game_process_id)
-            
-            if hasattr(self.console_app, 'run_async'):
-                self.console_app.run_async(stop())
-        
-        if hasattr(self, 'process') and self.process:
-            self.process.terminate()
-            self.log("Game stopped", "info")
-            self.is_running = False
-            dpg.configure_item(self.start_button, enabled=True)
-            dpg.configure_item(self.status_text, default_value="Stopped", color=(150, 150, 150, 255))
-    
-    def _edit_vehicle_config(self, sender=None, app_data=None) -> None:
-        """Edit vehicle config"""
-        if not self.selected_vehicle:
-            self.log("Please select a vehicle config first", "warning")
-            return
-        
-        self.log(f"Edit config: {self.selected_vehicle}", "info")
-    
-    def _open_terrain_generator(self, sender=None, app_data=None) -> None:
-        """Open terrain generator"""
-        self.log("Switching to terrain generator", "info")
-        if hasattr(self.console_app, 'switch_module'):
-            self.console_app.switch_module("terrain_generator")
-    
-    def _view_log(self, sender=None, app_data=None) -> None:
-        """View game log"""
-        import os
-        log_path = "game.log"
-        if os.path.exists(log_path):
-            self.log(f"Log file: {log_path}", "info")
-            import subprocess
-            subprocess.run(["open", log_path] if os.uname().sysname == "Darwin" else ["xdg-open", log_path])
+            args += ["--terrain", self.selected_terrain]
+        if self.debug_check is not None and self.debug_check.isChecked():
+            args.append("--debug")
+
+        if hasattr(self.console_app, "get_logs_dir"):
+            logs_dir = self.console_app.get_logs_dir()
         else:
-            self.log("Log file not found", "warning")
-    
-    def on_show(self) -> None:
-        """On module show"""
-        self._refresh_configs()
-    
+            logs_dir = os.path.join(os.getcwd(), "logs")
+            os.makedirs(logs_dir, exist_ok=True)
+
+        self._game_log_path = os.path.join(logs_dir, "game.log")
+
+        self.log(f"启动游戏：{sys.executable} {' '.join(args)}", "info")
+        if self.status_label is not None:
+            self.status_label.setText("● 启动中...")
+            self.status_label.setStyleSheet("color: #ffa500; font-size: 16px;")
+
+        self.process = QtCore.QProcess()
+        self.process.setWorkingDirectory(self.console_app.project_root if hasattr(self.console_app, "project_root") else os.getcwd())
+        self.process.setProcessChannelMode(QtCore.QProcess.MergedChannels)
+        self.process.readyReadStandardOutput.connect(self._on_process_output)
+        self.process.finished.connect(self._on_process_finished)
+
+        try:
+            self._log_file = open(self._game_log_path, "a", encoding="utf-8")
+        except Exception:
+            self._log_file = None
+
+        if self.start_button is not None:
+            self.start_button.setEnabled(False)
+        if self.stop_button is not None:
+            self.stop_button.setEnabled(True)
+
+        self.process.start(sys.executable, args)
+        if not self.process.waitForStarted(3000):
+            self.log("启动失败：无法启动进程", "error")
+            self._close_log_file()
+            if self.start_button is not None:
+                self.start_button.setEnabled(True)
+            if self.stop_button is not None:
+                self.stop_button.setEnabled(False)
+            if self.status_label is not None:
+                self.status_label.setText("● 失败")
+                self.status_label.setStyleSheet("color: #ff4444; font-size: 16px;")
+            self.process = None
+            return
+
+        if self.status_label is not None:
+            self.status_label.setText("● 运行中")
+            self.status_label.setStyleSheet("color: #00ff00; font-size: 16px;")
+        self.log("游戏已启动", "success")
+
+    def _on_process_output(self) -> None:
+        if not self.process:
+            return
+        data = bytes(self.process.readAllStandardOutput()).decode(errors="replace")
+        if not data:
+            return
+        for line in data.splitlines():
+            if self._log_file:
+                try:
+                    self._log_file.write(line + "\n")
+                    self._log_file.flush()
+                except Exception:
+                    pass
+            self.log(f"[游戏] {line}", "info")
+
+    def _on_process_finished(self, exit_code: int, exit_status: QtCore.QProcess.ExitStatus) -> None:
+        self._close_log_file()
+        if self.start_button is not None:
+            self.start_button.setEnabled(True)
+        if self.stop_button is not None:
+            self.stop_button.setEnabled(False)
+        if self.status_label is not None:
+            self.status_label.setText("● 已停止")
+            self.status_label.setStyleSheet("color: #aaaaaa; font-size: 16px;")
+        self.process = None
+        self.log(f"游戏进程已退出（code={exit_code}）", "info")
+
+    def _close_log_file(self) -> None:
+        if self._log_file:
+            try:
+                self._log_file.close()
+            except Exception:
+                pass
+        self._log_file = None
+
+    def _stop_game(self) -> None:
+        if not self.process or self.process.state() == QtCore.QProcess.NotRunning:
+            self.log("游戏未运行", "warning")
+            return
+        self.process.terminate()
+        if not self.process.waitForFinished(2000):
+            self.process.kill()
+        self.log("游戏已停止", "info")
+
+    def _edit_vehicle_config(self) -> None:
+        if not self.selected_vehicle:
+            self.log("请先选择一个车辆配置", "warning")
+            return
+        self.log(f"编辑配置：{self.selected_vehicle}", "info")
+
+    def _open_terrain_generator(self) -> None:
+        self.log("切换到地形生成器", "info")
+        if hasattr(self.console_app, "switch_module"):
+            self.console_app.switch_module("terrain_generator")
+
+    def _view_log(self) -> None:
+        logs_dir = self.console_app.get_logs_dir() if hasattr(self.console_app, "get_logs_dir") else os.path.join(os.getcwd(), "logs")
+        log_path = self._game_log_path or os.path.join(logs_dir, "game.log")
+        if os.path.exists(log_path):
+            self.log(f"日志文件：{log_path}", "info")
+            try:
+                system = platform.system()
+                if system == "Darwin":
+                    subprocess.run(["open", log_path])
+                elif system == "Windows":
+                    os.startfile(log_path)  # type: ignore[attr-defined]
+                else:
+                    subprocess.run(["xdg-open", log_path])
+            except Exception as e:
+                self.log(f"打开失败：{e}", "warning")
+        else:
+            self.log("日志文件不存在", "warning")
+
     def cleanup(self) -> None:
-        """Cleanup resources"""
-        if self.is_running and hasattr(self, 'process'):
-            self.process.terminate()
+        if self.process and self.process.state() != QtCore.QProcess.NotRunning:
+            self.process.kill()
+        self._close_log_file()
+

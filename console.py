@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-🎮 Vehicle Game Console - 游戏控制台入口 (CustomTkinter 版本)
+🎮 Vehicle Game Console - 游戏控制台入口 (PySide6/Qt 版本)
 
 功能:
 - 游戏启动（支持多车辆配置）
@@ -12,7 +12,7 @@
     python console.py
 
 依赖:
-    pip install customtkinter
+    pip install PySide6
 """
 
 import sys
@@ -28,11 +28,11 @@ def check_dependencies():
     """检查依赖"""
     missing = []
     
-    # 检查 CustomTkinter
+    # 检查 PySide6（控制台 UI）
     try:
-        import customtkinter
+        import PySide6  # noqa: F401
     except ImportError:
-        missing.append("customtkinter")
+        missing.append("PySide6")
     
     # 检查 Panda3D（游戏需要）
     try:
@@ -54,7 +54,7 @@ def check_dependencies():
 def main():
     """主函数"""
     print("=" * 60)
-    print("🎮 Vehicle Game Console v0.2.0 (CustomTkinter)")
+    print("🎮 Vehicle Game Console v0.2.0")
     print("=" * 60)
     
     # 检查依赖
@@ -65,7 +65,7 @@ def main():
     print("启动控制台...\n")
     
     # 导入并运行应用
-    from console_app_ctk import ConsoleApp
+    from console_app import ConsoleApp
     
     app = ConsoleApp()
     app.initialize()
