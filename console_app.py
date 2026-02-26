@@ -205,7 +205,9 @@ class ConsoleApp:
                 border-radius: 8px;
                 padding: 7px 10px;
                 selection-background-color: #1f6aa5;
+                min-height: 32px;
             }
+            QLineEdit:focus, QTextEdit:focus { border: 1px solid #1f6aa5; }
 
             QComboBox {
                 background-color: #242424;
@@ -213,9 +215,12 @@ class ConsoleApp:
                 border-radius: 8px;
                 padding: 7px 10px;
                 padding-right: 30px;
-                combobox-popup: 0;
+                /* Use Qt popup to make dropdown fully styleable on macOS */
+                combobox-popup: 1;
+                min-height: 32px;
             }
             QComboBox:hover { border: 1px solid #4a4a4a; }
+            QComboBox:focus { border: 1px solid #1f6aa5; }
             QComboBox::drop-down {
                 subcontrol-origin: padding;
                 subcontrol-position: top right;
@@ -236,20 +241,34 @@ class ConsoleApp:
                 outline: 0;
             }
             QComboBox QAbstractItemView::item { padding: 8px 10px; }
+            QAbstractItemView {
+                background-color: #242424;
+                color: #e6e6e6;
+                selection-background-color: #1f6aa5;
+                selection-color: #ffffff;
+            }
+            QMenu {
+                background-color: #242424;
+                color: #e6e6e6;
+                border: 1px solid #3a3a3a;
+                padding: 6px;
+            }
+            QMenu::item { padding: 8px 10px; border-radius: 8px; }
+            QMenu::item:selected { background-color: #1f6aa5; color: #ffffff; }
 
             /* Checkbox */
-            QCheckBox { spacing: 10px; }
+            QCheckBox { spacing: 10px; color: #e6e6e6; }
             QCheckBox::indicator {
                 width: 18px;
                 height: 18px;
                 border-radius: 4px;
-                border: 1px solid #6a6a6a;
-                background-color: #1f1f1f;
+                border: 2px solid #9a9a9a;
+                background-color: #101010;
             }
-            QCheckBox::indicator:hover { border: 1px solid #a0a0a0; }
+            QCheckBox::indicator:hover { border: 2px solid #cfcfcf; }
             QCheckBox::indicator:checked {
                 background-color: #1f6aa5;
-                border: 1px solid #1f6aa5;
+                border: 2px solid #1f6aa5;
             }
             QCheckBox::indicator:checked:hover { background-color: #2580c8; }
 
@@ -257,8 +276,8 @@ class ConsoleApp:
             QGroupBox {
                 border: 1px solid #2f2f2f;
                 border-radius: 12px;
-                margin-top: 18px;
-                padding: 14px;
+                margin-top: 14px;
+                padding: 12px;
                 background-color: #202020;
             }
             QGroupBox::title {
@@ -266,6 +285,19 @@ class ConsoleApp:
                 left: 12px;
                 padding: 0 8px;
                 color: #e6e6e6;
+            }
+
+            /* Progress bar */
+            QProgressBar {
+                border: 1px solid #3a3a3a;
+                border-radius: 8px;
+                background: #242424;
+                height: 14px;
+                text-align: center;
+            }
+            QProgressBar::chunk {
+                border-radius: 8px;
+                background-color: #1f6aa5;
             }
 
             /* Tooltip */

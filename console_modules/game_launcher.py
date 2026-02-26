@@ -64,8 +64,11 @@ class GameLauncherModule(ConsoleModule):
         settings = QtWidgets.QGroupBox("游戏设置")
         s_layout = QtWidgets.QVBoxLayout(settings)
         self.fullscreen_check = QtWidgets.QCheckBox("全屏模式")
+        self.fullscreen_check.setToolTip("切换全屏显示（可能影响窗口/多显示器布局）。")
         self.debug_check = QtWidgets.QCheckBox("调试模式")
+        self.debug_check.setToolTip("启用更详细的调试输出（可能降低性能）。")
         self.shadows_check = QtWidgets.QCheckBox("启用阴影")
+        self.shadows_check.setToolTip("启用实时阴影（画面更真实，但更耗性能）。")
         self.shadows_check.setChecked(True)
         s_layout.addWidget(self.fullscreen_check)
         s_layout.addWidget(self.debug_check)
@@ -76,6 +79,7 @@ class GameLauncherModule(ConsoleModule):
         res_row = QtWidgets.QHBoxLayout()
         res_row.addWidget(QtWidgets.QLabel("分辨率:"), 0)
         self.resolution_combo = QtWidgets.QComboBox()
+        self.resolution_combo.setToolTip("窗口/渲染分辨率（越高越清晰，但更耗性能）。")
         self.resolution_combo.addItems(["1280x720", "1920x1080", "2560x1440", "3840x2160"])
         self.resolution_combo.setCurrentText("1280x720")
         res_row.addWidget(self.resolution_combo, 1)
@@ -125,9 +129,18 @@ class GameLauncherModule(ConsoleModule):
 
     def _build_config_row(self, label: str, *, is_vehicle: bool) -> QtWidgets.QHBoxLayout:
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel(label), 0)
+        label_w = QtWidgets.QLabel(label)
+        if is_vehicle:
+            label_w.setToolTip("从 configs/vehicles 选择车辆配置。")
+        else:
+            label_w.setToolTip("从 configs/terrain 选择地形配置。")
+        row.addWidget(label_w, 0)
         combo = QtWidgets.QComboBox()
         combo.setMinimumWidth(220)
+        if is_vehicle:
+            combo.setToolTip("选择车辆配置（configs/vehicles/*.json）。")
+        else:
+            combo.setToolTip("选择地形配置（configs/terrain/*.json）。")
         row.addWidget(combo, 0)
 
         refresh = QtWidgets.QPushButton("🔄 刷新")
@@ -346,4 +359,3 @@ class GameLauncherModule(ConsoleModule):
         if self.process and self.process.state() != QtCore.QProcess.NotRunning:
             self.process.kill()
         self._close_log_file()
-
