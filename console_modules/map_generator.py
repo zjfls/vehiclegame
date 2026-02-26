@@ -94,27 +94,13 @@ class MapGeneratorModule(ConsoleModule):
         # 配置管理工具栏
         toolbar = self._build_toolbar()
         layout.addWidget(toolbar)
+        layout.addSpacing(10)
         
-        # 主内容区（滚动）
-        scroll = QtWidgets.QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        
-        content_widget = QtWidgets.QWidget()
-        content_layout = QtWidgets.QVBoxLayout(content_widget)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(12)
-        
-        scroll.setWidget(content_widget)
-        layout.addWidget(scroll, 1)
-        
-        # 创建四个模块 UI
-        self._create_module_ui(content_layout, "1_terrain", "基础地形", "🏔️", None)
-        self._create_module_ui(content_layout, "2_colors", "地图颜色", "🎨", "1_terrain")
-        self._create_module_ui(content_layout, "3_track", "赛道数据", "🏁", "1_terrain")
-        self._create_module_ui(content_layout, "4_scenery", "场景元素", "🌲", "1_terrain")
-        
-        content_layout.addStretch(1)
+        # 创建四个模块 UI（直接放在主布局中，不使用滚动框）
+        self._create_module_ui(layout, "1_terrain", "基础地形", "🏔️", None)
+        self._create_module_ui(layout, "2_colors", "地图颜色", "🎨", "1_terrain")
+        self._create_module_ui(layout, "3_track", "赛道数据", "🏁", "1_terrain")
+        self._create_module_ui(layout, "4_scenery", "场景元素", "🌲", "1_terrain")
         
         # 日志区域
         log_group = QtWidgets.QGroupBox("📊 生成日志")
