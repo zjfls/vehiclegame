@@ -330,13 +330,31 @@ class RacingGame(ShowBase):
         except Exception:
             pass
         
-        # Create terrain
+        # Always keep RuntimeTerrain for sampling (track projection, props placement),
+        # but prefer loading pre-baked mesh/color assets when available.
         self.terrain = RuntimeTerrain(self.loader, terrain_config)
-        self.terrain_node = self.terrain.build(self.render)
+        terrain_node = None
+
+        terrain_runtime = selected.get("terrain_runtime") if isinstance(selected, dict) else None
+        baked_mesh_rel = terrain_runtime.get("mesh_bam") if isinstance(terrain_runtime, dict) else None
+
+        if baked_mesh_rel:
+            try:
+                baked_mesh_path = PROJECT_ROOT / str(baked_mesh_rel)
+                if baked_mesh_path.exists():
+                    terrain_node = self.loader.loadModel(str(baked_mesh_path))
+                    terrain_node.reparentTo(self.render)
+                    print(f"Terrain: loaded baked mesh {baked_mesh_rel}")
+            except Exception as e:
+                print(f"Terrain: failed to load baked mesh ({e}), fallback to runtime build")
+                terrain_node = None
+
+        if terrain_node is None:
+            terrain_node = self.terrain.build(self.render)
+
+        self.terrain_node = terrain_node
         self.terrain_node.setPos(0, 0, 0)
         self.terrain_node.setTwoSided(False)
-        
-        # Enable shadows and shaders on terrain
         self.terrain_node.setShaderAuto()
         
         print(f"Terrain: {self.terrain.map_width}x{self.terrain.map_height} with enhanced colors")
@@ -573,6 +591,7 @@ class RacingGame(ShowBase):
         terrain_mod = cfg.modules.get("1_terrain")
         terrain_data = terrain_mod.data if terrain_mod else {}
         terrain_output = str(terrain_data.get("output") or "race_base")
+        terrain_generated_files = list(terrain_mod.generated_files or []) if terrain_mod else []
 
         heightmap_candidates = [
             Path("res/terrain") / f"{terrain_output}.npy",
@@ -594,6 +613,44 @@ class RacingGame(ShowBase):
                     colors = json.load(f)
             except Exception:
                 colors = None
+
+        terrain_runtime = None
+        terrain_runtime_candidates = [
+            Path(p)
+            for p in terrain_generated_files
+            if str(p).endswith("_terrain_runtime.json")
+        ]
+
+        colors_mod = cfg.modules.get("2_colors")
+        if colors_mod and colors_mod.generated_files:
+            terrain_runtime_candidates.extend(
+                Path(p)
+                for p in colors_mod.generated_files
+                if str(p).endswith("_terrain_runtime.json")
+            )
+
+        terrain_runtime_candidates.append(Path("res/terrain") / f"{terrain_output}_terrain_runtime.json")
+
+        for runtime_candidate in terrain_runtime_candidates:
+            runtime_abs = PROJECT_ROOT / runtime_candidate
+            if not runtime_abs.exists():
+                continue
+            try:
+                with open(runtime_abs, "r", encoding="utf-8") as f:
+                    terrain_runtime = json.load(f)
+                break
+            except Exception:
+                terrain_runtime = None
+
+        if terrain_runtime is None:
+            baked_mesh = Path("res/terrain") / f"{terrain_output}_terrain_mesh.bam"
+            if (PROJECT_ROOT / baked_mesh).exists():
+                terrain_runtime = {
+                    "version": "1.0",
+                    "terrain_base": terrain_output,
+                    "mesh_bam": str(baked_mesh),
+                    "heightmap_path": heightmap_path,
+                }
 
         track = None
         track_mod = cfg.modules.get("3_track")
@@ -626,6 +683,7 @@ class RacingGame(ShowBase):
             "terrain_output": terrain_output,
             "heightmap_path": heightmap_path,
             "colors": colors,
+            "terrain_runtime": terrain_runtime,
             "track": track,
             "scenery": scenery,
         }
@@ -801,6 +859,7 @@ class RacingGame(ShowBase):
                 pass
 
         self.vehicle_node = self.render.attachNewNode("vehicle")
+        self._vehicle_visual_ready = False
         # A separate node lets us change pose without touching world-space placement.
         self.chassis_node = self.vehicle_node.attachNewNode("chassis")
         self.body_node = self.chassis_node.attachNewNode("body")
@@ -932,14 +991,12 @@ class RacingGame(ShowBase):
 
         # Shading + lighting.
         self.vehicle_node.setShaderAuto()
-        self.vehicle_node.setLightOff()
-        self.vehicle_node.setLight(self.sun_np)
-        self.vehicle_node.setLight(self.ambient_np)
 
     def setup_camera(self):
         """Setup camera"""
         self.camera_distance = 15.0
         self.camera_height = 8.0
+        self.camera_target_height = 2.0
         self.camera_smooth = 0.06
         self.camera_smooth_catchup = 0.22
         self._camera_catchup_frames = 0
@@ -964,6 +1021,31 @@ class RacingGame(ShowBase):
         self._debug_cam_pan_speed = 0.75    # scaled by distance
         self._debug_cam_zoom_factor = 0.9
 
+    def _get_camera_follow_anchor(self, state):
+        """Return follow anchor position + forward direction in world space.
+
+        Use visual transform once available so camera stays locked to what the
+        player actually sees, not a potentially different simulation Z.
+        """
+        visual_ready = bool(getattr(self, "_vehicle_visual_ready", False))
+        vehicle_node = getattr(self, "vehicle_node", None)
+        if visual_ready and vehicle_node is not None:
+            anchor = vehicle_node.getPos(self.render)
+            quat = vehicle_node.getQuat(self.render)
+            forward = quat.getForward()
+            if forward.length_squared() > 1e-8:
+                forward.normalize()
+            else:
+                forward = Vec3(0.0, 1.0, 0.0)
+            return anchor, forward
+
+        heading_rad = math.radians(state.heading)
+        anchor = Vec3(float(state.position.x), float(state.position.y), float(state.position.z))
+        forward = Vec3(math.sin(heading_rad), math.cos(heading_rad), 0.0)
+        if forward.length_squared() > 1e-8:
+            forward.normalize()
+        return anchor, forward
+
     def _get_mouse_xy(self):
         if self.mouseWatcherNode and self.mouseWatcherNode.hasMouse():
             m = self.mouseWatcherNode.getMouse()
@@ -977,7 +1059,8 @@ class RacingGame(ShowBase):
         """
 
         state = self.player_vehicle.get_state()
-        target = Vec3(state.position.x, state.position.y, state.position.z + 2.0)
+        anchor, _ = self._get_camera_follow_anchor(state)
+        target = Vec3(anchor.x, anchor.y, anchor.z + float(self.camera_target_height))
 
         cam_pos = self.camera.getPos(self.render)
         offset = cam_pos - target
@@ -1083,13 +1166,11 @@ class RacingGame(ShowBase):
     def _init_camera_position(self):
         """Initialize camera position to follow vehicle at start"""
         state = self.player_vehicle.get_state()
-        heading_rad = math.radians(state.heading)
-        cam_x = state.position.x - math.sin(heading_rad) * self.camera_distance
-        cam_y = state.position.y - math.cos(heading_rad) * self.camera_distance
-        cam_z = state.position.z + self.camera_height
-        self.camera.setPos(cam_x, cam_y, cam_z)
-        target_z = state.position.z + 2.0
-        self.camera.lookAt(state.position.x, state.position.y, target_z)
+        anchor, forward = self._get_camera_follow_anchor(state)
+        cam_pos = anchor - forward * float(self.camera_distance) + Vec3(0.0, 0.0, float(self.camera_height))
+        self.camera.setPos(cam_pos)
+        target = Vec3(anchor.x, anchor.y, anchor.z + float(self.camera_target_height))
+        self.camera.lookAt(target)
     
     def setup_inputs(self):
         """Setup keyboard inputs"""
@@ -1318,6 +1399,7 @@ class RacingGame(ShowBase):
         if z < z_required:
             z = z_required
         self.vehicle_node.setPos(pos.x, pos.y, z)
+        self._vehicle_visual_ready = True
 
         # The simulation uses a math-style heading where +angle turns toward +X.
         # Panda3D's +H turns toward -X, so we negate to keep visuals aligned.
@@ -1364,22 +1446,17 @@ class RacingGame(ShowBase):
             smooth = self.camera_smooth_catchup
             self._camera_catchup_frames -= 1
             
-        heading_rad = math.radians(state.heading)
-        # Panda3D coordinate system: X right, Y forward (into screen), Z up
-        # Camera should be behind vehicle (negative Y offset in vehicle local space)
-        cam_x = state.position.x - math.sin(heading_rad) * self.camera_distance
-        cam_y = state.position.y - math.cos(heading_rad) * self.camera_distance
-        cam_z = state.position.z + self.camera_height
+        anchor, forward = self._get_camera_follow_anchor(state)
+        desired_pos = anchor - forward * float(self.camera_distance) + Vec3(0.0, 0.0, float(self.camera_height))
         
         current_pos = self.camera.getPos()
-        new_x = current_pos[0] + (cam_x - current_pos[0]) * smooth
-        new_y = current_pos[1] + (cam_y - current_pos[1]) * smooth
-        new_z = current_pos[2] + (cam_z - current_pos[2]) * smooth
+        new_x = current_pos[0] + (desired_pos[0] - current_pos[0]) * smooth
+        new_y = current_pos[1] + (desired_pos[1] - current_pos[1]) * smooth
+        new_z = current_pos[2] + (desired_pos[2] - current_pos[2]) * smooth
         
         self.camera.setPos(new_x, new_y, new_z)
-        # Look at a point slightly above vehicle center
-        target_z = state.position.z + 2.0
-        self.camera.lookAt(state.position.x, state.position.y, target_z)
+        target = Vec3(anchor.x, anchor.y, anchor.z + float(self.camera_target_height))
+        self.camera.lookAt(target)
     
     def _update_ui(self, state, trans):
         """Update UI"""

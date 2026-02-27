@@ -5,6 +5,7 @@ import asyncio
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -14,6 +15,116 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.map_generator_orchestrator import GenerationStep
+
+
+def _apply_procedural_color_overrides(terrain_config: Any, procedural: Dict[str, Any]) -> None:
+    """Apply procedural color values onto a TerrainConfig-like object."""
+    if not isinstance(procedural, dict):
+        return
+
+    grass = procedural.get("grass_color")
+    dirt = procedural.get("dirt_color")
+    rock = procedural.get("rock_color")
+
+    if isinstance(grass, (list, tuple)) and len(grass) >= 3:
+        terrain_config.grass_color = tuple(grass[:3])
+    if isinstance(dirt, (list, tuple)) and len(dirt) >= 3:
+        terrain_config.dirt_color = tuple(dirt[:3])
+    if isinstance(rock, (list, tuple)) and len(rock) >= 3:
+        terrain_config.rock_color = tuple(rock[:3])
+
+    if procedural.get("height_rock_threshold") is not None:
+        terrain_config.height_rock_threshold = float(procedural.get("height_rock_threshold"))
+    if procedural.get("slope_rock_threshold") is not None:
+        terrain_config.slope_rock_threshold = float(procedural.get("slope_rock_threshold"))
+
+
+def _bake_terrain_runtime_assets(
+    terrain_output: str,
+    *,
+    procedural_overrides: Optional[Dict[str, Any]] = None,
+) -> Tuple[List[str], Dict[str, Any]]:
+    """Bake high-precision terrain mesh (+ procedural colors) to runtime assets."""
+    terrain_dir = PROJECT_ROOT / "res" / "terrain"
+    terrain_dir.mkdir(parents=True, exist_ok=True)
+
+    npy_path = terrain_dir / f"{terrain_output}.npy"
+    pgm_path = terrain_dir / f"{terrain_output}.pgm"
+    if npy_path.exists():
+        heightmap_path = npy_path
+    elif pgm_path.exists():
+        heightmap_path = pgm_path
+    else:
+        raise FileNotFoundError(f"Heightmap not found for bake: {terrain_output}")
+
+    from panda3d.core import Filename, NodePath
+    from src.world.terrain_runtime import RuntimeTerrain, TerrainConfig
+
+    scale = 10.0  # Keep consistent with current runtime terrain scale.
+    terrain_config = TerrainConfig(
+        heightmap_path=str(heightmap_path.relative_to(PROJECT_ROOT)),
+        use_procedural_texture=True,
+        world_size_x=200.0 * scale,
+        world_size_y=200.0 * scale,
+        height_scale=20.0,
+        mesh_step=1,
+        noise_scale=0.08 / scale,
+        noise_octaves=5,
+        grass_color=(0.08, 0.38, 0.08),
+        dirt_color=(0.58, 0.42, 0.25),
+        rock_color=(0.68, 0.62, 0.55),
+        height_rock_threshold=0.4,
+        slope_rock_threshold=0.3,
+        uv_mode="world",
+        uv_world_scale=0.06,
+        enable_detail_texture=True,
+        detail_texture_size=256,
+        detail_texture_strength=0.22,
+        detail_uv_scale=18.0,
+        detail_lod_bias=-0.7,
+        detail_anisotropy=16,
+    )
+    _apply_procedural_color_overrides(terrain_config, procedural_overrides or {})
+
+    runtime = RuntimeTerrain(loader=None, config=terrain_config)
+    root = NodePath("terrain_bake_root")
+    terrain_np = runtime.build(root)
+    terrain_np.setPos(0, 0, 0)
+    terrain_np.setTwoSided(False)
+
+    mesh_path = terrain_dir / f"{terrain_output}_terrain_mesh.bam"
+    if not terrain_np.writeBamFile(Filename.from_os_specific(str(mesh_path))):
+        raise RuntimeError(f"Failed to write terrain mesh BAM: {mesh_path}")
+
+    runtime_manifest = {
+        "version": "1.0",
+        "terrain_base": terrain_output,
+        "generated_at": time.time(),
+        "heightmap_path": str(heightmap_path.relative_to(PROJECT_ROOT)),
+        "mesh_bam": str(mesh_path.relative_to(PROJECT_ROOT)),
+        "mesh_step": 1,
+        "world_size_x": float(terrain_config.world_size_x),
+        "world_size_y": float(terrain_config.world_size_y),
+        "height_scale": float(terrain_config.height_scale),
+        "use_procedural_texture": True,
+        "procedural": {
+            "grass_color": list(terrain_config.grass_color),
+            "dirt_color": list(terrain_config.dirt_color),
+            "rock_color": list(terrain_config.rock_color),
+            "height_rock_threshold": float(terrain_config.height_rock_threshold),
+            "slope_rock_threshold": float(terrain_config.slope_rock_threshold),
+        },
+    }
+
+    runtime_path = terrain_dir / f"{terrain_output}_terrain_runtime.json"
+    with open(runtime_path, "w", encoding="utf-8") as f:
+        json.dump(runtime_manifest, f, indent=2, ensure_ascii=False)
+
+    baked_files = [
+        str(mesh_path.relative_to(PROJECT_ROOT)),
+        str(runtime_path.relative_to(PROJECT_ROOT)),
+    ]
+    return baked_files, runtime_manifest
 
 
 class TerrainGenerationStep(GenerationStep):
@@ -88,12 +199,16 @@ class TerrainGenerationStep(GenerationStep):
             
             if not generated:
                 return False, "未生成任何文件"
-            
-            self.generated_files = generated
+            self.progress = 0.9
+
+            baked_files, runtime_manifest = _bake_terrain_runtime_assets(output_name)
+            generated.extend(baked_files)
+            self.generated_files = list(dict.fromkeys(generated))
             self.progress = 1.0
             
             # 保存到上下文供后续步骤使用
             context['terrain_output'] = output_name
+            context['terrain_runtime'] = runtime_manifest
             context['terrain_config'] = {
                 'width': width,
                 'height': height,
@@ -158,12 +273,23 @@ class ColorGenerationStep(GenerationStep):
             with open(output_path, 'w', encoding='utf-8') as f:
                 json.dump(color_config, f, indent=2, ensure_ascii=False)
             
-            self.generated_files = [str(output_path.relative_to(PROJECT_ROOT))]
+            procedural_overrides = color_config.get("procedural") if mode == "procedural" else {}
+            baked_files, runtime_manifest = _bake_terrain_runtime_assets(
+                terrain_output,
+                procedural_overrides=procedural_overrides if isinstance(procedural_overrides, dict) else {},
+            )
+
+            self.generated_files = list(
+                dict.fromkeys(
+                    [str(output_path.relative_to(PROJECT_ROOT)), *baked_files]
+                )
+            )
             self.progress = 1.0
             
             context['color_config'] = color_config
+            context['terrain_runtime'] = runtime_manifest
             
-            return True, f"颜色配置已保存：{output_path.name}"
+            return True, f"颜色配置与离线地形资产已保存：{output_path.name}"
             
         except Exception as e:
             return False, f"颜色生成异常：{str(e)}"
