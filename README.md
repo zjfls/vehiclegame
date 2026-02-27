@@ -40,12 +40,6 @@ python console.py
   - 游戏设置（全屏/调试模式）
   - 实时状态监控
 
-- **🛠️ 地形生成**
-  - 可视化参数配置
-  - 轨道走廊刷平
-  - 实时进度显示
-  - 日志输出
-
 - **🗺️ 地图生成**
   - 选择/新建地图配置（自动出现在列表中）
   - 分步生成（地形/颜色/赛道/场景）与一键生成
@@ -98,14 +92,9 @@ python scripts/generate_terrain.py \
   --track-flatten-strength 0.95
 ```
 
-### 地形生成（控制台）
+### 地形生成（命令行）
 
-```bash
-python console.py
-# 选择 "🛠️ 地形生成" 模块
-```
-
-输出目录：`res/terrain/`（`*.pgm`, `*.npy`, `*.json`）
+控制台不再提供“地形生成”页面；请使用命令行脚本生成地形。
 
 ## 📁 项目结构
 
@@ -116,7 +105,7 @@ vehiclegame/
 │
 ├── 📁 console_modules/        # 控制台模块
 │   ├── game_launcher.py       # 🚀 游戏启动（多车辆支持）
-│   ├── terrain_generator.py   # 🛠️ 地形生成
+│   ├── vehicle_editor.py      # 🚗 车辆配置编辑
 │   └── map_generator.py       # 🗺️ 地图生成（配置选择/新建/自动保存）
 │
 ├── 📁 core/                   # 核心组件

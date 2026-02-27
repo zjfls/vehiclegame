@@ -544,32 +544,11 @@ class RacingGame(ShowBase):
         if not vehicle_id:
             return None
         try:
-            from core.config_manager import ConfigManager
+            # Vehicle configs are migrated to v2. We still return the legacy-shaped
+            # dict until the simulation core is upgraded.
+            from core.vehicle_config_loader import load_vehicle_legacy
 
-            cm = ConfigManager()
-            raw = cm.load_config("vehicles", vehicle_id)
-
-            physics = dict(raw.get("physics", {}) or {})
-            physics.setdefault("mass", raw.get("vehicle_mass", physics.get("mass", 1500.0)))
-
-            suspension = dict(raw.get("suspension", {}) or {})
-            suspension.setdefault("vehicle_mass", raw.get("vehicle_mass", 1500.0))
-
-            pose = dict(raw.get("pose", {}) or {})
-            pose.setdefault("vehicle_mass", raw.get("vehicle_mass", 1500.0))
-
-            return {
-                "name": raw.get("name", vehicle_id),
-                "position": raw.get("position", [0, 0, 12.0]),
-                "heading": raw.get("heading", 0),
-                "vehicle_mass": raw.get("vehicle_mass", 1500.0),
-                "physics": physics,
-                "suspension": suspension,
-                "pose": pose,
-                "wheels": raw.get("wheels", []),
-                "tires": raw.get("tires", []),
-                "transmission": raw.get("transmission", {}),
-            }
+            return load_vehicle_legacy(vehicle_id)
         except Exception as e:
             print(f"[config] Failed to load vehicle '{vehicle_id}': {e}")
             return None

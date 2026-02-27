@@ -33,12 +33,6 @@ python console.py
 - `truck` - 卡车（3500kg，最高 120km/h）
 - `offroad` - 越野车（2200kg，最高 160km/h）
 
-#### 🛠️ 地形生成
-- 设置地形参数（尺寸、噪声、高度等）
-- 可选：启用轨道走廊刷平
-- 点击"生成地形"按钮
-- 输出到 `res/terrain/` 目录
-
 #### 🗺️ 地图生成
 - 选择已有地图配置（`configs/maps/*.json`）
 - 新建地图配置（会立即出现在下拉列表中）
@@ -112,30 +106,6 @@ cp configs/vehicles/sports_car.json configs/vehicles/my_car.json
 | `final_ratio` | 最终传动比 | 3.5 |
 | `auto_shift` | 自动换挡 | true |
 
-## 地形生成参数
-
-### 基本参数
-| 参数 | 说明 | 默认值 |
-|-----|------|--------|
-| `width` | 宽度（像素） | 1024 |
-| `height` | 高度（像素） | 1024 |
-| `seed` | 随机种子 | 42 |
-| `base_frequency` | 噪声基础频率 | 0.003 |
-| `octaves` | FBM 叠加层数 | 5 |
-| `persistence` | 幅度衰减系数 | 0.5 |
-| `lacunarity` | 频率增长系数 | 2.0 |
-| `smooth_sigma` | 高斯平滑强度 | 2.5 |
-| `relief_strength` | 全局起伏强度(0..1) | 0.25 |
-
-### 轨道走廊参数
-| 参数 | 说明 | 默认值 |
-|-----|------|--------|
-| `track-csv` | 赛道 CSV 文件 | scripts/track_example.csv |
-| `track-coord-space` | 坐标空间（normalized/pixel） | normalized |
-| `corridor-width-px` | 走廊宽度（像素） | 120 |
-| `edge-falloff-px` | 边缘衰减（像素） | 50 |
-| `track-flatten-strength` | 刷平强度(0..1) | 0.9 |
-
 ## 命令行参数（可选）
 
 当前控制台仅提供 GUI 入口：`python console.py`。
@@ -152,11 +122,6 @@ pip install --upgrade PySide6
 **检查**:
 1. Panda3D 是否安装：`pip list | grep panda3d`
 2. 查看日志：`cat logs/game.log`
-
-### 问题：地形生成失败
-**检查**:
-1. scipy 是否安装：`pip list | grep scipy`
-2. 检查输出目录权限：`ls -la res/terrain/`
 
 ## 扩展开发
 
@@ -182,7 +147,6 @@ from console_modules.my_module import MyModule
 
 def _register_modules(self):
     self.modules["game_launcher"] = GameLauncherModule(self)
-    self.modules["terrain_generator"] = TerrainGeneratorModule(self)
     self.modules["my_module"] = MyModule(self)  # 新增
 ```
 
@@ -197,7 +161,7 @@ core/
 console_modules/
 ├── base_module.py      # 模块基类
 ├── game_launcher.py    # 游戏启动模块
-├── terrain_generator.py # 地形生成模块
+├── vehicle_editor.py    # 车辆配置模块
 └── map_generator.py     # 地图生成模块
 configs/
 ├── vehicles/           # 车辆配置

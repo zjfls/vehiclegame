@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from .vehicle_config_loader import upgrade_v1_to_v2, normalize_v2
+
 
 class ConfigManager:
     """配置管理器"""
@@ -23,11 +25,17 @@ class ConfigManager:
     def _create_default_vehicle_configs(self) -> None:
         """创建默认车辆配置"""
         vehicles_dir = self.config_dir / "vehicles"
+
+        def _write_v2(path: Path, vehicle_id: str, v1_config: Dict[str, Any]) -> None:
+            # All repo vehicles use v2 schema. Generate v2 directly so running the
+            # game does not depend on a separate migration step.
+            v2 = normalize_v2(upgrade_v1_to_v2(v1_config, vehicle_id=vehicle_id))
+            path.write_text(json.dumps(v2, indent=2, ensure_ascii=False), encoding="utf-8")
         
         # 跑车配置
         sports_car = vehicles_dir / "sports_car.json"
         if not sports_car.exists():
-            sports_car.write_text(json.dumps({
+            _write_v2(sports_car, "sports_car", {
                 "name": "Sports Car",
                 "position": [0, 0, 12.0],
                 "heading": 0,
@@ -107,12 +115,12 @@ class ConfigManager:
                     {"position": [-0.9, -1.3, -0.35], "radius": 0.35, "can_steer": False, "is_driven": True},
                     {"position": [0.9, -1.3, -0.35], "radius": 0.35, "can_steer": False, "is_driven": True},
                 ],
-            }, indent=2, ensure_ascii=False))
+            })
         
         # 卡车配置
         truck = vehicles_dir / "truck.json"
         if not truck.exists():
-            truck.write_text(json.dumps({
+            _write_v2(truck, "truck", {
                 "name": "Truck",
                 "position": [0, 0, 12.0],
                 "heading": 0,
@@ -192,12 +200,12 @@ class ConfigManager:
                     {"position": [-1.0, -1.8, -0.4], "radius": 0.45, "can_steer": False, "is_driven": True},
                     {"position": [1.0, -1.8, -0.4], "radius": 0.45, "can_steer": False, "is_driven": True},
                 ],
-            }, indent=2, ensure_ascii=False))
+            })
         
         # 越野车配置
         offroad = vehicles_dir / "offroad.json"
         if not offroad.exists():
-            offroad.write_text(json.dumps({
+            _write_v2(offroad, "offroad", {
                 "name": "Off-Road",
                 "position": [0, 0, 12.0],
                 "heading": 0,
@@ -277,7 +285,7 @@ class ConfigManager:
                     {"position": [-0.95, -1.5, -0.38], "radius": 0.4, "can_steer": False, "is_driven": True},
                     {"position": [0.95, -1.5, -0.38], "radius": 0.4, "can_steer": False, "is_driven": True},
                 ],
-            }, indent=2, ensure_ascii=False))
+            })
     
     def load_config(self, config_type: str, name: str) -> Dict[str, Any]:
         """加载配置"""

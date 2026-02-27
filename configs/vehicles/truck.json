@@ -1,20 +1,28 @@
 {
+  "version": 2,
   "name": "Truck",
-  "position": [
-    0,
-    0,
-    12.0
-  ],
-  "heading": 0,
-  "vehicle_mass": 3500.0,
-  "physics": {
-    "max_speed": 120.0,
-    "drag_coefficient": 0.6,
-    "acceleration": 30.0,
-    "deceleration": 25.0,
-    "brake_deceleration": 80.0,
-    "turn_speed": 120.0,
-    "max_steering_angle": 35.0,
+  "spawn": {
+    "position_m": [
+      0.0,
+      0.0,
+      12.0
+    ],
+    "heading_deg": 0.0
+  },
+  "chassis": {
+    "mass_kg": 3500.0,
+    "cg_height_m": 0.8,
+    "cg_position_m": [
+      0.0,
+      0.0,
+      0.5
+    ],
+    "wheelbase_m": 3.5,
+    "track_width_m": 2.0,
+    "yaw_inertia_kgm2": 6635.416666666667
+  },
+  "controls": {
+    "steer_max_deg": 35.0,
     "input_smoothing": {
       "throttle_rise": 5.0,
       "throttle_fall": 8.0,
@@ -24,199 +32,231 @@
       "steering_fall": 4.0
     }
   },
-  "suspension": {
-    "com_position": [
-      0,
-      0,
-      0.5
-    ],
-    "wheels": [
-      {
-        "position": [
-          -1.0,
-          1.8,
-          -0.4
-        ],
-        "natural_frequency": 5.0,
-        "damping_ratio": 0.8,
-        "rest_length": 0.4,
-        "max_compression": 0.15,
-        "max_droop": 0.15
-      },
-      {
-        "position": [
-          1.0,
-          1.8,
-          -0.4
-        ],
-        "natural_frequency": 5.0,
-        "damping_ratio": 0.8,
-        "rest_length": 0.4,
-        "max_compression": 0.15,
-        "max_droop": 0.15
-      },
-      {
-        "position": [
-          -1.0,
-          -1.8,
-          -0.4
-        ],
-        "natural_frequency": 5.0,
-        "damping_ratio": 0.8,
-        "rest_length": 0.4,
-        "max_compression": 0.15,
-        "max_droop": 0.15
-      },
-      {
-        "position": [
-          1.0,
-          -1.8,
-          -0.4
-        ],
-        "natural_frequency": 5.0,
-        "damping_ratio": 0.8,
-        "rest_length": 0.4,
-        "max_compression": 0.15,
-        "max_droop": 0.15
-      }
-    ]
+  "aero": {
+    "cd": 0.6,
+    "frontal_area_m2": 3.2,
+    "rolling_resistance": 0.022
   },
-  "tires": [
-    {
-      "lat_stiff_max_load": 3.0,
-      "lat_stiff_value": 15.0,
-      "long_stiff_value": 800.0,
-      "friction": 0.9
-    },
-    {
-      "lat_stiff_max_load": 3.0,
-      "lat_stiff_value": 15.0,
-      "long_stiff_value": 800.0,
-      "friction": 0.9
-    },
-    {
-      "lat_stiff_max_load": 3.0,
-      "lat_stiff_value": 15.0,
-      "long_stiff_value": 1000.0,
-      "friction": 1.0
-    },
-    {
-      "lat_stiff_max_load": 3.0,
-      "lat_stiff_value": 15.0,
-      "long_stiff_value": 1000.0,
-      "friction": 1.0
-    }
-  ],
-  "transmission": {
+  "simple_physics": {
+    "max_speed_kmh": 120.0,
+    "acceleration_kmhps": 30.0,
+    "deceleration_kmhps": 25.0,
+    "brake_deceleration_kmhps": 80.0,
+    "turn_speed_deg_s": 120.0,
+    "drag_coefficient": 0.6
+  },
+  "powertrain": {
     "engine": {
-      "moi": 2.0,
+      "idle_rpm": 800.0,
       "max_rpm": 4500.0,
-      "torque_curve": [
+      "moi_kgm2": 2.0,
+      "torque_curve_nm": [
         [
-          0,
-          500
+          0.0,
+          500.0
         ],
         [
-          1000,
-          800
+          1000.0,
+          800.0
         ],
         [
-          2000,
-          900
+          2000.0,
+          900.0
         ],
         [
-          3000,
-          850
+          3000.0,
+          850.0
         ],
         [
-          4000,
-          600
+          4000.0,
+          600.0
         ],
         [
-          4500,
-          0
+          4500.0,
+          0.0
         ]
       ],
       "damping_full_throttle": 0.2,
       "damping_zero_throttle_clutch_engaged": 3.0,
       "damping_zero_throttle_clutch_disengaged": 0.5
     },
-    "gear_ratios": [
-      0,
-      4.5,
-      3.0,
-      2.0,
-      1.5,
-      1.0,
-      0.7
-    ],
-    "final_ratio": 4.0,
-    "reverse_ratio": -4.0,
-    "auto_shift": true,
-    "shift_time": 0.5,
-    "clutch_strength": 15.0,
+    "gearbox": {
+      "ratios": [
+        0.0,
+        4.5,
+        3.0,
+        2.0,
+        1.5,
+        1.0,
+        0.7
+      ],
+      "final_drive": 4.0,
+      "reverse_ratio": -4.0,
+      "auto_shift": true,
+      "shift_time_s": 0.5,
+      "shift_rpm_up_ratio": 0.85,
+      "shift_rpm_down_ratio": 0.35
+    },
+    "clutch": {
+      "strength": 15.0,
+      "engage_time_s": 0.2
+    },
     "differential": {
-      "diff_type": "open",
+      "type": "open",
+      "layout": "AWD",
       "front_rear_split": 0.5,
       "front_bias": 1.0,
       "rear_bias": 1.0
     }
   },
-  "pose": {
-    "track_width": 2.0,
-    "wheelbase": 3.5,
-    "cg_height": 0.8,
-    "max_roll": 8.0,
-    "max_pitch": 6.0,
-    "roll_stiffness": 15000.0,
-    "pitch_stiffness": 15000.0,
-    "bounce_stiffness": 25000.0,
-    "roll_damping": 800.0,
-    "pitch_damping": 800.0,
-    "bounce_damping": 1200.0,
-    "front_anti_roll": 1800.0,
-    "rear_anti_roll": 1500.0
-  },
   "wheels": [
     {
-      "position": [
+      "position_local_m": [
         -1.0,
         1.8,
         -0.4
       ],
-      "radius": 0.45,
+      "radius_m": 0.45,
+      "inertia_kgm2": 2.025,
+      "brake_max_torque_nm": 7725.375,
       "can_steer": true,
       "is_driven": true
     },
     {
-      "position": [
+      "position_local_m": [
         1.0,
         1.8,
         -0.4
       ],
-      "radius": 0.45,
+      "radius_m": 0.45,
+      "inertia_kgm2": 2.025,
+      "brake_max_torque_nm": 7725.375,
       "can_steer": true,
       "is_driven": true
     },
     {
-      "position": [
+      "position_local_m": [
         -1.0,
         -1.8,
         -0.4
       ],
-      "radius": 0.45,
+      "radius_m": 0.45,
+      "inertia_kgm2": 2.025,
+      "brake_max_torque_nm": 7725.375,
       "can_steer": false,
       "is_driven": true
     },
     {
-      "position": [
+      "position_local_m": [
         1.0,
         -1.8,
         -0.4
       ],
-      "radius": 0.45,
+      "radius_m": 0.45,
+      "inertia_kgm2": 2.025,
+      "brake_max_torque_nm": 7725.375,
       "can_steer": false,
       "is_driven": true
     }
-  ]
+  ],
+  "tires": [
+    {
+      "mu": 0.9,
+      "long_stiff": 800.0,
+      "lat_stiff": 15.0,
+      "lat_stiff_max_load": 3.0
+    },
+    {
+      "mu": 0.9,
+      "long_stiff": 800.0,
+      "lat_stiff": 15.0,
+      "lat_stiff_max_load": 3.0
+    },
+    {
+      "mu": 1.0,
+      "long_stiff": 1000.0,
+      "lat_stiff": 15.0,
+      "lat_stiff_max_load": 3.0
+    },
+    {
+      "mu": 1.0,
+      "long_stiff": 1000.0,
+      "lat_stiff": 15.0,
+      "lat_stiff_max_load": 3.0
+    }
+  ],
+  "suspension": {
+    "com_position_m": [
+      0.0,
+      0.0,
+      0.5
+    ],
+    "wheels": [
+      {
+        "position_local_m": [
+          -1.0,
+          1.8,
+          -0.4
+        ],
+        "natural_frequency_hz": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length_m": 0.4,
+        "max_compression_m": 0.15,
+        "max_droop_m": 0.15
+      },
+      {
+        "position_local_m": [
+          1.0,
+          1.8,
+          -0.4
+        ],
+        "natural_frequency_hz": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length_m": 0.4,
+        "max_compression_m": 0.15,
+        "max_droop_m": 0.15
+      },
+      {
+        "position_local_m": [
+          -1.0,
+          -1.8,
+          -0.4
+        ],
+        "natural_frequency_hz": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length_m": 0.4,
+        "max_compression_m": 0.15,
+        "max_droop_m": 0.15
+      },
+      {
+        "position_local_m": [
+          1.0,
+          -1.8,
+          -0.4
+        ],
+        "natural_frequency_hz": 5.0,
+        "damping_ratio": 0.8,
+        "rest_length_m": 0.4,
+        "max_compression_m": 0.15,
+        "max_droop_m": 0.15
+      }
+    ]
+  },
+  "visual": {
+    "pose": {
+      "track_width": 2.0,
+      "wheelbase": 3.5,
+      "cg_height": 0.8,
+      "max_roll": 8.0,
+      "max_pitch": 6.0,
+      "roll_stiffness": 15000.0,
+      "pitch_stiffness": 15000.0,
+      "bounce_stiffness": 25000.0,
+      "roll_damping": 800.0,
+      "pitch_damping": 800.0,
+      "bounce_damping": 1200.0,
+      "front_anti_roll": 1800.0,
+      "rear_anti_roll": 1500.0
+    }
+  }
 }

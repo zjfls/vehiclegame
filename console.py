@@ -97,12 +97,12 @@ class ConsoleApp:
 
     def _register_modules(self) -> None:
         from console_modules.game_launcher import GameLauncherModule
-        from console_modules.terrain_generator import TerrainGeneratorModule
         from console_modules.map_generator import MapGeneratorModule
+        from console_modules.vehicle_editor import VehicleEditorModule
 
         self.modules["game_launcher"] = GameLauncherModule(self)
-        self.modules["terrain_generator"] = TerrainGeneratorModule(self)
         self.modules["map_generator"] = MapGeneratorModule(self)
+        self.modules["vehicle_editor"] = VehicleEditorModule(self)
         print(f"[Console] 已注册 {len(self.modules)} 个模块")
 
     def _start_async_loop(self) -> None:
@@ -525,7 +525,9 @@ def check_dependencies() -> bool:
 
 def main() -> None:
     print("=" * 60)
-    print("🎮 Vehicle Game Console v0.2.1")
+    # Avoid UnicodeEncodeError on Windows consoles using legacy encodings (e.g. GBK).
+    # Keep the UI emojis in the Qt window title; console output should be ASCII-safe.
+    print("Vehicle Game Console v0.2.1")
     print("=" * 60)
 
     if not check_dependencies():

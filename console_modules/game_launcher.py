@@ -220,9 +220,17 @@ class GameLauncherModule(ConsoleModule):
         try:
             config = config_mgr.load_config("vehicles", self.selected_vehicle)
             name = config.get("name", self.selected_vehicle)
-            mass = config.get("vehicle_mass", "N/A")
-            max_speed = config.get("physics", {}).get("max_speed", "N/A")
-            info = f"{name} | 质量：{mass}kg | 最高速度：{max_speed}km/h"
+            mass = (
+                config.get("chassis", {}).get("mass_kg")
+                if isinstance(config.get("chassis"), dict)
+                else config.get("vehicle_mass")
+            )
+            max_speed = (
+                config.get("simple_physics", {}).get("max_speed_kmh")
+                if isinstance(config.get("simple_physics"), dict)
+                else config.get("physics", {}).get("max_speed")
+            )
+            info = f"{name} | 质量：{mass if mass is not None else 'N/A'}kg | 最高速度：{max_speed if max_speed is not None else 'N/A'}km/h"
             self.vehicle_info_label.setText(info)
         except Exception as e:
             self.vehicle_info_label.setText(f"加载失败：{e}")
@@ -344,7 +352,11 @@ class GameLauncherModule(ConsoleModule):
         if not self.selected_vehicle:
             self.log("请先选择一个车辆配置", "warning")
             return
+        # Switch to the vehicle editor module and preselect the current vehicle.
         self.log(f"编辑配置：{self.selected_vehicle}", "info")
+        if hasattr(self.console_app, "switch_module"):
+            setattr(self.console_app, "_vehicle_editor_open_id", self.selected_vehicle)
+            self.console_app.switch_module("vehicle_editor")
 
     def _open_map_generator(self) -> None:
         self.log("切换到地图生成器", "info")

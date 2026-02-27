@@ -38,6 +38,8 @@ Thumbs.db
 *.log
 logs/
 *.pid
+# Local backups created by migration scripts
+configs/vehicles/_backup_v1/
 # Panda3D
 *.bam
 *.pz

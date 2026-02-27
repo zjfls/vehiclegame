@@ -8,9 +8,11 @@
     "depends_on": null,
     "status": "completed",
     "generated_files": [
-      "res/terrain/race_base.npy",
-      "res/terrain/race_base.pgm",
-      "res/terrain/race_base.json"
+      "res\\terrain\\race_base.npy",
+      "res\\terrain\\race_base.pgm",
+      "res\\terrain\\race_base.json",
+      "res\\terrain\\race_base_terrain_mesh.bam",
+      "res\\terrain\\race_base_terrain_runtime.json"
     ],
     "width": 1024,
     "height": 1024,
@@ -32,7 +34,9 @@
     "depends_on": "1_terrain",
     "status": "completed",
     "generated_files": [
-      "res/terrain/race_base_colors.json"
+      "res\\terrain\\race_base_colors.json",
+      "res\\terrain\\race_base_terrain_mesh.bam",
+      "res\\terrain\\race_base_terrain_runtime.json"
     ],
     "mode": "procedural",
     "procedural": {}
@@ -42,7 +46,7 @@
     "depends_on": "1_terrain",
     "status": "completed",
     "generated_files": [
-      "configs/tracks/default_track_runtime.json",
+      "configs\\tracks\\default_track_runtime.json",
       "configs/tracks/default_track.csv"
     ],
     "csv_path": "configs/tracks/default_track.csv",
@@ -58,7 +62,7 @@
     "depends_on": "1_terrain",
     "status": "completed",
     "generated_files": [
-      "configs/scenery/race_base_scenery.json"
+      "configs\\scenery\\race_base_scenery.json"
     ],
     "trees": {
       "count": 30,

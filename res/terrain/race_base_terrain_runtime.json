@@ -1,9 +1,9 @@
 {
   "version": "1.0",
   "terrain_base": "race_base",
-  "generated_at": 1772151412.524559,
-  "heightmap_path": "res/terrain/race_base.npy",
-  "mesh_bam": "res/terrain/race_base_terrain_mesh.bam",
+  "generated_at": 1772184441.3037937,
+  "heightmap_path": "res\\terrain\\race_base.npy",
+  "mesh_bam": "res\\terrain\\race_base_terrain_mesh.bam",
   "mesh_step": 1,
   "world_size_x": 2000.0,
   "world_size_y": 2000.0,

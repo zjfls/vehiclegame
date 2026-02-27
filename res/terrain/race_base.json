@@ -29,8 +29,8 @@
     "std": 0.18285621341304217
   },
   "artifacts": {
-    "npy": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.npy",
-    "pgm16": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.pgm",
-    "report": "/Users/zhoujie/Documents/work/learn/vehiclegame/res/terrain/race_base.json"
+    "npy": "E:\\work\\vehiclegame\\res\\terrain\\race_base.npy",
+    "pgm16": "E:\\work\\vehiclegame\\res\\terrain\\race_base.pgm",
+    "report": "E:\\work\\vehiclegame\\res\\terrain\\race_base.json"
   }
 }

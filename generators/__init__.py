@@ -39,17 +39,69 @@ def _apply_procedural_color_overrides(terrain_config: Any, procedural: Dict[str,
         terrain_config.slope_rock_threshold = float(procedural.get("slope_rock_threshold"))
 
 
+def _safe_slug(text: str, *, default: str = "item") -> str:
+    """Create a filesystem-friendly slug.
+
+    Keep it simple to avoid Windows path issues.
+    """
+
+    s = (text or "").strip()
+    if not s:
+        return default
+    out: List[str] = []
+    for ch in s:
+        if ch.isalnum() or ch in "-_":
+            out.append(ch)
+        else:
+            out.append("_")
+    slug = "".join(out).strip("_")
+    return slug or default
+
+
+def _rel_to_root(path: Path) -> str:
+    """Return a repo-root-relative path string with forward slashes."""
+
+    try:
+        return path.relative_to(PROJECT_ROOT).as_posix()
+    except Exception:
+        return path.as_posix()
+
+
+def _make_terrain_artifact_dir(*, map_id: Optional[str], terrain_output: str) -> Path:
+    """Make a unique output folder for a terrain generation run.
+
+    Layout:
+      res/terrain/<map_id>/<terrain_output>__<timestamp>/
+    """
+
+    map_part = _safe_slug(map_id or "map")
+    out_part = _safe_slug(terrain_output or "terrain")
+
+    # Include milliseconds to reduce collisions when regenerating quickly.
+    ts = time.strftime("%Y%m%d_%H%M%S", time.localtime())
+    ms = int(time.time() * 1000) % 1000
+    run_id = f"{ts}_{ms:03d}"
+    return Path("res") / "terrain" / map_part / f"{out_part}__{run_id}"
+
+
 def _bake_terrain_runtime_assets(
     terrain_output: str,
     *,
+    terrain_dir: str | Path | None = None,
     procedural_overrides: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[str], Dict[str, Any]]:
     """Bake high-precision terrain mesh (+ procedural colors) to runtime assets."""
-    terrain_dir = PROJECT_ROOT / "res" / "terrain"
-    terrain_dir.mkdir(parents=True, exist_ok=True)
 
-    npy_path = terrain_dir / f"{terrain_output}.npy"
-    pgm_path = terrain_dir / f"{terrain_output}.pgm"
+    # Allow callers to direct assets into a per-run folder.
+    if terrain_dir is None:
+        terrain_dir_abs = PROJECT_ROOT / "res" / "terrain"
+    else:
+        td = Path(terrain_dir)
+        terrain_dir_abs = td if td.is_absolute() else (PROJECT_ROOT / td)
+    terrain_dir_abs.mkdir(parents=True, exist_ok=True)
+
+    npy_path = terrain_dir_abs / f"{terrain_output}.npy"
+    pgm_path = terrain_dir_abs / f"{terrain_output}.pgm"
     if npy_path.exists():
         heightmap_path = npy_path
     elif pgm_path.exists():
@@ -92,7 +144,7 @@ def _bake_terrain_runtime_assets(
     terrain_np.setPos(0, 0, 0)
     terrain_np.setTwoSided(False)
 
-    mesh_path = terrain_dir / f"{terrain_output}_terrain_mesh.bam"
+    mesh_path = terrain_dir_abs / f"{terrain_output}_terrain_mesh.bam"
     if not terrain_np.writeBamFile(Filename.from_os_specific(str(mesh_path))):
         raise RuntimeError(f"Failed to write terrain mesh BAM: {mesh_path}")
 
@@ -100,8 +152,8 @@ def _bake_terrain_runtime_assets(
         "version": "1.0",
         "terrain_base": terrain_output,
         "generated_at": time.time(),
-        "heightmap_path": str(heightmap_path.relative_to(PROJECT_ROOT)),
-        "mesh_bam": str(mesh_path.relative_to(PROJECT_ROOT)),
+        "heightmap_path": _rel_to_root(heightmap_path),
+        "mesh_bam": _rel_to_root(mesh_path),
         "mesh_step": 1,
         "world_size_x": float(terrain_config.world_size_x),
         "world_size_y": float(terrain_config.world_size_y),
@@ -116,14 +168,11 @@ def _bake_terrain_runtime_assets(
         },
     }
 
-    runtime_path = terrain_dir / f"{terrain_output}_terrain_runtime.json"
+    runtime_path = terrain_dir_abs / f"{terrain_output}_terrain_runtime.json"
     with open(runtime_path, "w", encoding="utf-8") as f:
         json.dump(runtime_manifest, f, indent=2, ensure_ascii=False)
 
-    baked_files = [
-        str(mesh_path.relative_to(PROJECT_ROOT)),
-        str(runtime_path.relative_to(PROJECT_ROOT)),
-    ]
+    baked_files = [_rel_to_root(mesh_path), _rel_to_root(runtime_path)]
     return baked_files, runtime_manifest
 
 
@@ -143,6 +192,11 @@ class TerrainGenerationStep(GenerationStep):
             seed = self.config.get('seed', 42)
             generator = self.config.get('generator', 'opensimplex')
             output_name = self.config.get('output', 'race_base')
+
+            # Group artifacts per map + per generation run to avoid collisions.
+            map_id = context.get("map_id") if isinstance(context.get("map_id"), str) else None
+            artifact_dir_rel = _make_terrain_artifact_dir(map_id=map_id, terrain_output=str(output_name))
+            artifact_dir_abs = PROJECT_ROOT / artifact_dir_rel
             
             noise_config = self.config.get('noise', {})
             sculpt_config = self.config.get('sculpt', {})
@@ -155,7 +209,7 @@ class TerrainGenerationStep(GenerationStep):
                 "--height", str(height),
                 "--seed", str(seed),
                 "--generator", generator,
-                "--out-dir", str(PROJECT_ROOT / "res" / "terrain"),
+                "--out-dir", str(artifact_dir_abs),
                 "--name", output_name,
                 "--base-frequency", str(noise_config.get('base_frequency', 0.003)),
                 "--octaves", str(noise_config.get('octaves', 5)),
@@ -185,7 +239,7 @@ class TerrainGenerationStep(GenerationStep):
             self.progress = 0.8
             
             # 验证生成的文件
-            output_dir = PROJECT_ROOT / "res" / "terrain"
+            output_dir = artifact_dir_abs
             expected_files = [
                 output_dir / f"{output_name}.npy",
                 output_dir / f"{output_name}.pgm",
@@ -195,19 +249,20 @@ class TerrainGenerationStep(GenerationStep):
             generated = []
             for f in expected_files:
                 if f.exists():
-                    generated.append(str(f.relative_to(PROJECT_ROOT)))
+                    generated.append(_rel_to_root(f))
             
             if not generated:
                 return False, "未生成任何文件"
             self.progress = 0.9
 
-            baked_files, runtime_manifest = _bake_terrain_runtime_assets(output_name)
+            baked_files, runtime_manifest = _bake_terrain_runtime_assets(output_name, terrain_dir=artifact_dir_rel)
             generated.extend(baked_files)
             self.generated_files = list(dict.fromkeys(generated))
             self.progress = 1.0
             
             # 保存到上下文供后续步骤使用
             context['terrain_output'] = output_name
+            context['terrain_dir'] = str(artifact_dir_rel.as_posix())
             context['terrain_runtime'] = runtime_manifest
             context['terrain_config'] = {
                 'width': width,
@@ -240,6 +295,12 @@ class ColorGenerationStep(GenerationStep):
             terrain_output = context.get('terrain_output')
             if not terrain_output:
                 return False, "依赖地形未生成"
+
+            terrain_dir_rel = context.get("terrain_dir")
+            if isinstance(terrain_dir_rel, str) and terrain_dir_rel:
+                output_dir = PROJECT_ROOT / Path(terrain_dir_rel)
+            else:
+                output_dir = PROJECT_ROOT / "res" / "terrain"
             
             mode = self.config.get('mode', 'procedural')
             
@@ -265,7 +326,6 @@ class ColorGenerationStep(GenerationStep):
                 color_config['texture_blend'] = texture
             
             # 保存配置文件
-            output_dir = PROJECT_ROOT / "res" / "terrain"
             output_dir.mkdir(parents=True, exist_ok=True)
             
             output_path = output_dir / f"{terrain_output}_colors.json"
@@ -276,12 +336,13 @@ class ColorGenerationStep(GenerationStep):
             procedural_overrides = color_config.get("procedural") if mode == "procedural" else {}
             baked_files, runtime_manifest = _bake_terrain_runtime_assets(
                 terrain_output,
+                terrain_dir=terrain_dir_rel if isinstance(terrain_dir_rel, str) and terrain_dir_rel else None,
                 procedural_overrides=procedural_overrides if isinstance(procedural_overrides, dict) else {},
             )
 
             self.generated_files = list(
                 dict.fromkeys(
-                    [str(output_path.relative_to(PROJECT_ROOT)), *baked_files]
+                    [_rel_to_root(output_path), *baked_files]
                 )
             )
             self.progress = 1.0
