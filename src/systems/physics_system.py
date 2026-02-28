@@ -4,6 +4,7 @@
 """
 import math
 from .base_system import SystemBase
+from .update_context import SystemUpdateContext
 from ..data.vehicle_state import VehicleState, VehicleControlInput
 
 class PhysicsSystem(SystemBase):
@@ -61,7 +62,7 @@ class PhysicsSystem(SystemBase):
             'fall_rate': smoothing_config.get('steering_fall', 5.0),
         }
     
-    def update(self, dt: float, raw_input: VehicleControlInput, state: VehicleState) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """
         更新物理系统
         
@@ -70,17 +71,31 @@ class PhysicsSystem(SystemBase):
         - raw_input: 原始控制输入
         - state: 车辆状态（会被修改）
         """
+        dt = ctx.dt
+        raw_input = ctx.control_input
+        state = ctx.vehicle_state
+        if raw_input is None:
+            return
+
         # 1. 平滑输入
         self._smooth_input(dt, raw_input)
         
+        use_tire_forces = bool(getattr(ctx, "use_tire_forces", False))
+
         # 2. 计算速度变化
-        self._update_speed(dt, state)
+        # When tires drive the vehicle, we keep PhysicsSystem for steering +
+        # position integration but avoid double-applying acceleration.
+        if not use_tire_forces:
+            self._update_speed(dt, state)
         
         # 3. 计算转向
         self._update_steering(dt, state)
         
         # 4. 更新位置
-        self._update_position(dt, state)
+        # When tire forces drive the vehicle, VehicleEntity integrates position
+        # after applying tire acceleration.
+        if not use_tire_forces:
+            self._update_position(dt, state)
         
         # 5. 更新状态中的输入
         state.throttle = self._smoothed_input.throttle
@@ -130,7 +145,15 @@ class PhysicsSystem(SystemBase):
         所以 clamping 范围必须由调用方指定，否则会导致左右转向不对称。
         """
         delta = target - current
-        is_rising = (delta > 0) == (current > 0) or (delta != 0 and current == 0)
+        
+        # 对于双边范围（如 steering [-1, 1]），"上升"定义为绝对值增大（远离零）
+        # 对于单边范围（如 throttle [0, 1]），"上升"定义为值增大
+        if clamp_min < 0:
+            # 双边范围：上升 = 远离零，下降 = 接近零
+            is_rising = abs(target) > abs(current)
+        else:
+            # 单边范围：上升 = 值增大，下降 = 值减小
+            is_rising = delta > 0
         
         rate = smooth_param['rise_rate'] if is_rising else smooth_param['fall_rate']
         max_delta = dt * rate

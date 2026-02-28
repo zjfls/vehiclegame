@@ -1,7 +1,7 @@
 """
 姿态状态数据定义
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from .vehicle_state import Vector3
 
 @dataclass
@@ -20,11 +20,5 @@ class PoseState:
     bounce_velocity: float = 0.0  # 晃动速度 (m/s)
     
     # 车身变换
-    body_position: Vector3 = None   # 车身位置
-    body_rotation: Vector3 = None   # 车身旋转 (roll, pitch, yaw)
-    
-    def __post_init__(self):
-        if self.body_position is None:
-            self.body_position = Vector3()
-        if self.body_rotation is None:
-            self.body_rotation = Vector3()
+    body_position: Vector3 = field(default_factory=Vector3)   # 车身位置
+    body_rotation: Vector3 = field(default_factory=Vector3)   # 车身旋转 (roll, pitch, yaw)

@@ -4,6 +4,8 @@
 """
 from abc import ABC, abstractmethod
 
+from .update_context import SystemUpdateContext
+
 class ISystem(ABC):
     """
     系统接口
@@ -17,7 +19,7 @@ class ISystem(ABC):
         pass
     
     @abstractmethod
-    def update(self, dt: float) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """每帧更新"""
         pass
     

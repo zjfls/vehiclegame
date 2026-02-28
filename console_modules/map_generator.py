@@ -151,10 +151,10 @@ class MapGeneratorModule(ConsoleModule):
         # 日志区域
         log_group = QtWidgets.QGroupBox("📊 生成日志")
         log_layout = QtWidgets.QVBoxLayout(log_group)
-        
+
         self.log_text = QtWidgets.QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMaximumHeight(150)
+        self.log_text.setMinimumHeight(320)
         self.log_text.setFont(QtGui.QFont("Consolas", 9))
         log_layout.addWidget(self.log_text)
         

@@ -127,9 +127,8 @@ def main():
     world.add_vehicle(vehicle)
     world.set_player_vehicle(vehicle)
     
-    for name, system in vehicle._systems.items():
-        system.initialize()
-        print(f"[OK] {name} initialized")
+    vehicle.initialize_systems()
+    print("[OK] All systems initialized")
     
     dt = 0.016
     total_time = 0.0
@@ -196,9 +195,8 @@ def main():
         print(f"  Wheel {i}: LongForce={tire.long_force:.0f}N, LatForce={tire.lat_force:.0f}N, Slip={tire.long_slip:.2f}")
     
     print("\nShutting down...")
-    for name, system in vehicle._systems.items():
-        system.shutdown()
-        print(f"[OK] {name} shutdown")
+    vehicle.shutdown_systems()
+    print("[OK] All systems shutdown")
     
     print("\n" + "=" * 70)
     print("Test complete!")

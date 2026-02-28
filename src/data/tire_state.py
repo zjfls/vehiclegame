@@ -1,7 +1,7 @@
 """
 轮胎状态数据定义
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 
 @dataclass
@@ -40,11 +40,7 @@ class TireState:
 @dataclass
 class TiresState:
     """所有轮胎状态"""
-    tires: List[TireState] = None
-    
-    def __post_init__(self):
-        if self.tires is None:
-            self.tires = []
+    tires: List[TireState] = field(default_factory=list)
     
     def get_tire_state(self, index: int) -> TireState:
         """获取指定轮胎的状态"""

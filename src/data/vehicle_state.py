@@ -2,7 +2,7 @@
 车辆状态数据定义
 纯数据结构，无业务逻辑
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Tuple
 
 @dataclass
@@ -43,13 +43,13 @@ class VehicleControlInput:
 class VehicleState:
     """车辆物理状态"""
     # 位置和旋转
-    position: Vector3 = None
+    position: Vector3 = field(default_factory=Vector3)
     heading: float = 0.0          # 航向角 (度)
     
     # 运动状态
-    velocity: Vector3 = None
+    velocity: Vector3 = field(default_factory=Vector3)
     speed: float = 0.0            # 速度 (km/h)
-    acceleration: Vector3 = None
+    acceleration: Vector3 = field(default_factory=Vector3)
     
     # 转向状态
     steering_angle: float = 0.0   # 转向角 (度)
@@ -58,11 +58,3 @@ class VehicleState:
     engine_rpm: float = 800.0     # 发动机转速
     throttle: float = 0.0         # 油门 (0.0 ~ 1.0)
     brake: float = 0.0            # 刹车 (0.0 ~ 1.0)
-    
-    def __post_init__(self):
-        if self.position is None:
-            self.position = Vector3()
-        if self.velocity is None:
-            self.velocity = Vector3()
-        if self.acceleration is None:
-            self.acceleration = Vector3()

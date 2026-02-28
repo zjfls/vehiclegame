@@ -130,8 +130,7 @@ def main():
     world.set_player_vehicle(vehicle)
     
     # 初始化系统
-    for system in vehicle._systems.values():
-        system.initialize()
+    vehicle.initialize_systems()
     
     # 模拟游戏循环
     dt = 0.016  # 60 FPS
@@ -180,8 +179,7 @@ def main():
     print("=" * 60)
     
     # 关闭系统
-    for system in vehicle._systems.values():
-        system.shutdown()
+    vehicle.shutdown_systems()
 
 if __name__ == "__main__":
     main()

@@ -5,10 +5,8 @@
 import math
 from panda3d.core import Vec3, LQuaternionf
 from .base_system import SystemBase
+from .update_context import SystemUpdateContext
 from ..data.vehicle_state import VehicleState
-from ..data.pose_state import PoseState
-from ..data.suspension_state import SuspensionState
-from ..data.wheel_state import WheelsState
 
 class AnimationSystem(SystemBase):
     """
@@ -48,10 +46,14 @@ class AnimationSystem(SystemBase):
                 wheel = vehicle_node.find(f"wheel_{i}") or vehicle_node.find(f"wheel{i}")
                 self.wheel_nodes.append(wheel)
     
-    def update(self, dt: float, vehicle_state: VehicleState,
-               pose_state: PoseState, suspension_state: SuspensionState,
-               wheels_state: WheelsState):
+    def update(self, ctx: SystemUpdateContext) -> None:
         """更新动画"""
+        vehicle_state = ctx.vehicle_state
+        pose_state = ctx.pose_state
+        suspension_state = ctx.suspension_state
+        wheels_state = ctx.wheels_state
+        if pose_state is None or suspension_state is None or wheels_state is None:
+            return
         if not self.vehicle_node:
             return
         

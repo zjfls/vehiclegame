@@ -1,7 +1,7 @@
 """
 车轮状态数据定义
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from .vehicle_state import Vector3
 
@@ -9,8 +9,8 @@ from .vehicle_state import Vector3
 class WheelState:
     """单个车轮状态"""
     # 车轮位置
-    position: Vector3 = None       # 车轮世界坐标
-    local_position: Vector3 = None # 车轮相对车身坐标
+    position: Vector3 = field(default_factory=Vector3)       # 车轮世界坐标
+    local_position: Vector3 = field(default_factory=Vector3) # 车轮相对车身坐标
     
     # 车轮旋转
     rotation_angle: float = 0.0    # 车轮旋转角 (度)
@@ -20,7 +20,7 @@ class WheelState:
     steering_angle: float = 0.0    # 转向角 (度)
     
     # 车轮速度
-    linear_velocity: Vector3 = None  # 线速度 (m/s)
+    linear_velocity: Vector3 = field(default_factory=Vector3)  # 线速度 (m/s)
     angular_velocity: float = 0.0    # 角速度 (rad/s)
     
     # 轮胎状态
@@ -30,23 +30,11 @@ class WheelState:
     
     # 驱动力
     drive_torque: float = 0.0     # 驱动扭矩
-    
-    def __post_init__(self):
-        if self.position is None:
-            self.position = Vector3()
-        if self.local_position is None:
-            self.local_position = Vector3()
-        if self.linear_velocity is None:
-            self.linear_velocity = Vector3()
 
 @dataclass
 class WheelsState:
     """所有车轮状态"""
-    wheels: List[WheelState] = None
-    
-    def __post_init__(self):
-        if self.wheels is None:
-            self.wheels = []
+    wheels: List[WheelState] = field(default_factory=list)
     
     def get_wheel_state(self, index: int) -> WheelState:
         """获取指定车轮的状态"""

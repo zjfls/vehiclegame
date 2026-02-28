@@ -4,6 +4,7 @@
 """
 import math
 from .base_system import SystemBase
+from .update_context import SystemUpdateContext
 from ..data.vehicle_state import VehicleState
 from ..data.suspension_state import SuspensionState
 from ..data.pose_state import PoseState
@@ -44,9 +45,14 @@ class PoseSystem(SystemBase):
         self.front_anti_roll = self.config.get('front_anti_roll', 1000.0)
         self.rear_anti_roll = self.config.get('rear_anti_roll', 1000.0)
     
-    def update(self, dt: float, vehicle_state: VehicleState,
-               suspension_state: SuspensionState, pose_state: PoseState) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """更新姿态系统"""
+        dt = ctx.dt
+        vehicle_state = ctx.vehicle_state
+        suspension_state = ctx.suspension_state
+        pose_state = ctx.pose_state
+        if suspension_state is None or pose_state is None:
+            return
         # 1. 计算侧倾
         target_roll = self._calculate_target_roll(vehicle_state, suspension_state)
         self._update_roll(dt, target_roll, pose_state)

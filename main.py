@@ -23,6 +23,7 @@ from src.systems.pose_system import PoseSystem
 from src.systems.wheel_system import WheelSystem
 from src.systems.tire_system import TireSystem
 from src.systems.transmission_system import TransmissionSystem
+from src.systems.terrain_query import TerrainQueryAdapter
 
 # Import terrain system
 from src.world.terrain_runtime import RuntimeTerrain, TerrainConfig
@@ -91,13 +92,16 @@ class RacingGame(ShowBase):
         self.world.set_player_vehicle("player")
         
         # Initialize all systems
-        for name, system in self.player_vehicle._systems.items():
-            system.initialize()
+        self.player_vehicle.initialize_systems()
         
         # Setup scene
         self.setup_lights()
         self.setup_terrain()
         self.setup_track()
+        
+        # Connect terrain to vehicle systems
+        self.player_vehicle.terrain = TerrainQueryAdapter(self.terrain)
+        
         self.setup_environment()
         self.create_vehicle_visuals()
         self.setup_camera()
@@ -237,22 +241,28 @@ class RacingGame(ShowBase):
         self.sun_light = DirectionalLight("sun")
         self.sun_light.setColor((1.0, 0.96, 0.8, 1.0))  # Warm sun
         self.sun_np = self.render.attachNewNode(self.sun_light)
+        self._sun_shadow_dir = Vec3(-1.0, 1.0, -2.0)
+        if self._sun_shadow_dir.length_squared() < 1e-8:
+            self._sun_shadow_dir = Vec3(-0.4, 0.4, -0.8)
+        self._sun_shadow_dir.normalize()
 
-        # IMPORTANT: for shadow mapping, the light's NodePath transform acts as the
-        # shadow camera. Using setDirection() alone does not orient the camera.
-        # So we position + orient the NodePath instead.
-        self.sun_np.setPos(60, -60, 120)
-        self.sun_np.lookAt(0, 0, 0)
+        shadow_scale = float(self.terrain_world_scale)
+        self.shadow_map_resolution = 2048
+        self.shadow_focus_size = 22.0 * shadow_scale
+        self.shadow_light_distance = 32.0 * shadow_scale
+        self.shadow_near = 5.0
+        self.shadow_far = self.shadow_light_distance + 40.0 * shadow_scale
+        self.shadow_target_height = 2.0
         self.render.setLight(self.sun_np)
         
         # Setup shadow mapping
         # Use a higher-res shadow map for crisper vehicle shadows.
         if bool(getattr(self, "enable_shadows", True)):
-            self.sun_light.setShadowCaster(True, 2048, 2048)
-            # Cover the whole terrain with the orthographic shadow camera.
-            shadow_scale = float(self.terrain_world_scale)
-            self.sun_light.getLens().setFilmSize(260 * shadow_scale, 260 * shadow_scale)
-            self.sun_light.getLens().setNearFar(10, 400 * shadow_scale)
+            self.sun_light.setShadowCaster(True, int(self.shadow_map_resolution), int(self.shadow_map_resolution))
+            self._apply_shadow_focus(Vec3(0.0, 0.0, self.shadow_target_height))
+        else:
+            self.sun_np.setPos(60, -60, 120)
+            self.sun_np.lookAt(0, 0, 0)
         
         # Fill light (warmer)
         fill_light = AmbientLight("fill_light")
@@ -271,6 +281,66 @@ class RacingGame(ShowBase):
         self.render.setShaderAuto()
         
         print(f"Lighting: Multi-light setup ({'shadows on' if self.enable_shadows else 'shadows off'})")
+
+    def _apply_shadow_focus(self, target: Vec3) -> None:
+        if not bool(getattr(self, "enable_shadows", True)):
+            return
+        if not hasattr(self, "sun_np") or not hasattr(self, "sun_light"):
+            return
+
+        direction = Vec3(getattr(self, "_sun_shadow_dir", Vec3(-1.0, 1.0, -2.0)))
+        if direction.length_squared() < 1e-8:
+            direction = Vec3(-1.0, 1.0, -2.0)
+        direction.normalize()
+
+        focus_size = float(getattr(self, "shadow_focus_size", 220.0))
+        shadow_map_resolution = max(1, int(getattr(self, "shadow_map_resolution", 2048)))
+        texel_world = focus_size / float(shadow_map_resolution)
+
+        snap_target = Vec3(target)
+        if texel_world > 1e-6:
+            up_ref = Vec3(0.0, 0.0, 1.0)
+            if abs(direction.dot(up_ref)) > 0.98:
+                up_ref = Vec3(0.0, 1.0, 0.0)
+
+            right = direction.cross(up_ref)
+            if right.length_squared() < 1e-8:
+                right = Vec3(1.0, 0.0, 0.0)
+            right.normalize()
+
+            up = right.cross(direction)
+            if up.length_squared() < 1e-8:
+                up = Vec3(0.0, 0.0, 1.0)
+            up.normalize()
+
+            right_proj = snap_target.dot(right)
+            up_proj = snap_target.dot(up)
+            right_snap = round(right_proj / texel_world) * texel_world
+            up_snap = round(up_proj / texel_world) * texel_world
+
+            snap_target += right * (right_snap - right_proj)
+            snap_target += up * (up_snap - up_proj)
+
+        light_distance = float(getattr(self, "shadow_light_distance", 320.0))
+        light_pos = snap_target - direction * light_distance
+        self.sun_np.setPos(light_pos)
+        self.sun_np.lookAt(snap_target)
+
+        lens = self.sun_light.getLens()
+        if lens is not None:
+            lens.setFilmSize(focus_size, focus_size)
+            near_plane = float(getattr(self, "shadow_near", 5.0))
+            far_plane = float(getattr(self, "shadow_far", light_distance + 400.0))
+            if far_plane <= near_plane + 1.0:
+                far_plane = near_plane + 1.0
+            lens.setNearFar(near_plane, far_plane)
+
+    def _update_shadow_focus(self, state) -> None:
+        if not bool(getattr(self, "enable_shadows", True)):
+            return
+        anchor, _ = self._get_camera_follow_anchor(state)
+        target = Vec3(float(anchor.x), float(anchor.y), float(anchor.z) + float(getattr(self, "shadow_target_height", 2.0)))
+        self._apply_shadow_focus(target)
     
     def setup_terrain(self):
         """Setup enhanced procedural terrain"""
@@ -279,9 +349,18 @@ class RacingGame(ShowBase):
         heightmap_path = "res/terrain/smoke_flat_hd_regen_cli.npy"
         colors = None
         selected = getattr(self, "_selected_map", None)
+        terrain_runtime = selected.get("terrain_runtime") if isinstance(selected, dict) else None
         if isinstance(selected, dict):
             heightmap_path = str(selected.get("heightmap_path") or heightmap_path)
             colors = selected.get("colors")
+        mesh_tile_quads = 256
+        if isinstance(terrain_runtime, dict):
+            try:
+                runtime_tile_quads = terrain_runtime.get("mesh_tile_quads")
+                if runtime_tile_quads is not None:
+                    mesh_tile_quads = max(1, int(runtime_tile_quads))
+            except Exception:
+                mesh_tile_quads = 256
         terrain_config = TerrainConfig(
             heightmap_path=heightmap_path,
             use_procedural_texture=True,
@@ -291,6 +370,7 @@ class RacingGame(ShowBase):
             world_size_y=200.0 * scale,
             height_scale=20.0,  # More height variation
             mesh_step=1,
+            mesh_tile_quads=mesh_tile_quads,
             # When scaling the world up, keep macro noise features readable.
             noise_scale=0.08 / scale,
             noise_octaves=5,    # More detail layers
@@ -334,8 +414,6 @@ class RacingGame(ShowBase):
         # but prefer loading pre-baked mesh/color assets when available.
         self.terrain = RuntimeTerrain(self.loader, terrain_config)
         terrain_node = None
-
-        terrain_runtime = selected.get("terrain_runtime") if isinstance(selected, dict) else None
         baked_mesh_rel = terrain_runtime.get("mesh_bam") if isinstance(terrain_runtime, dict) else None
 
         if baked_mesh_rel:
@@ -1306,6 +1384,9 @@ class RacingGame(ShowBase):
         
         # Update visual position
         self._update_visuals(state, pose, wheels, terrain_height, terrain_normal)
+
+        # Keep the directional-light shadow camera centered around the vehicle.
+        self._update_shadow_focus(state)
         
         # Update camera
         self._update_camera(state, terrain_height)
@@ -1450,8 +1531,7 @@ class RacingGame(ShowBase):
     def exit_game(self):
         """Exit game"""
         print("Exiting game...")
-        for name, system in self.player_vehicle._systems.items():
-            system.shutdown()
+        self.player_vehicle.shutdown_systems()
         sys.exit()
 
 if __name__ == "__main__":

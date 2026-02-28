@@ -36,6 +36,7 @@ class TerrainConfig:
     world_size_y: float = 240.0
     height_scale: float = 18.0
     mesh_step: int = 2
+    mesh_tile_quads: int = 256
     # UVs drive texture/detail mapping. Default keeps backward compatibility.
     uv_mode: str = "normalized"  # normalized | world
     uv_tiling: float = 3.0
@@ -91,19 +92,79 @@ class RuntimeTerrain:
         dx = self.config.world_size_x / max(1, sample_w - 1)
         dy = self.config.world_size_y / max(1, sample_h - 1)
 
-        # Slope is used for rock placement; compute it in world units so the
-        # thresholds remain meaningful when world_size/height_scale changes.
         slope = self._compute_slope(sampled, dx, dy)
+        max_cells_x = max(1, sample_w - 1)
+        max_cells_y = max(1, sample_h - 1)
+        tile_quads = int(getattr(self.config, "mesh_tile_quads", 256))
+        if tile_quads <= 0:
+            tile_quads = max(max_cells_x, max_cells_y)
+        tile_quads = max(1, min(tile_quads, max_cells_x, max_cells_y))
+
+        terrain_np = parent.attachNewNode("terrain_root")
+        tile_idx = 0
+        for y0 in range(0, sample_h - 1, tile_quads):
+            y1 = min(sample_h - 1, y0 + tile_quads)
+            for x0 in range(0, sample_w - 1, tile_quads):
+                x1 = min(sample_w - 1, x0 + tile_quads)
+                tile_np = self._build_tile_geom(
+                    parent=terrain_np,
+                    sampled=sampled,
+                    slope=slope,
+                    dx=float(dx),
+                    dy=float(dy),
+                    sample_w=int(sample_w),
+                    sample_h=int(sample_h),
+                    x_start=int(x0),
+                    x_end=int(x1),
+                    y_start=int(y0),
+                    y_end=int(y1),
+                    tile_index=int(tile_idx),
+                )
+                tile_np.setTwoSided(False)
+                tile_idx += 1
+
+        terrain_np.setTwoSided(False)
+        if not self.config.use_procedural_texture:
+            self._apply_texture(terrain_np)
+
+        if bool(self.config.enable_detail_texture):
+            self._apply_detail_texture(terrain_np)
+        return terrain_np
+
+    def _build_tile_geom(
+        self,
+        *,
+        parent: NodePath,
+        sampled: np.ndarray,
+        slope: np.ndarray,
+        dx: float,
+        dy: float,
+        sample_w: int,
+        sample_h: int,
+        x_start: int,
+        x_end: int,
+        y_start: int,
+        y_end: int,
+        tile_index: int,
+    ) -> NodePath:
+        tile_w = x_end - x_start + 1
+        tile_h = y_end - y_start + 1
+        if tile_w < 2 or tile_h < 2:
+            return parent.attachNewNode(f"terrain_tile_{tile_index:03d}_empty")
 
         fmt = GeomVertexFormat.getV3n3c4t2()
-        vdata = GeomVertexData("terrain", fmt, Geom.UHStatic)
+        vdata = GeomVertexData(f"terrain_tile_{tile_index:03d}", fmt, Geom.UHStatic)
         vtx = GeomVertexWriter(vdata, "vertex")
         normal = GeomVertexWriter(vdata, "normal")
         color = GeomVertexWriter(vdata, "color")
         uv = GeomVertexWriter(vdata, "texcoord")
 
-        for gy in range(sample_h):
-            for gx in range(sample_w):
+        use_world_uv = str(self.config.uv_mode).lower() == "world"
+        uv_world_scale = float(self.config.uv_world_scale)
+        uv_tiling = float(self.config.uv_tiling)
+
+        for gy in range(y_start, y_end + 1):
+            for gx in range(x_start, x_end + 1):
                 world_x = -0.5 * self.config.world_size_x + gx * dx
                 world_y = -0.5 * self.config.world_size_y + gy * dy
                 h_norm = float(sampled[gy, gx])
@@ -111,7 +172,7 @@ class RuntimeTerrain:
 
                 vtx.addData3(world_x, world_y, world_z)
                 normal.addData3(self._mesh_normal(sampled, gx, gy, dx, dy))
-                
+
                 if self.config.use_procedural_texture:
                     color.addData4(
                         *self._procedural_color(
@@ -124,23 +185,23 @@ class RuntimeTerrain:
                 else:
                     color.addData4(*self._blend_color(h_norm, float(slope[gy, gx])))
 
-                if str(self.config.uv_mode).lower() == "world":
-                    # World-space UVs keep texture scale stable when the terrain is scaled up.
-                    u = float(world_x) * float(self.config.uv_world_scale)
-                    v = float(world_y) * float(self.config.uv_world_scale)
+                if use_world_uv:
+                    u = float(world_x) * uv_world_scale
+                    v = float(world_y) * uv_world_scale
                 else:
-                    u = (gx / max(1, sample_w - 1)) * self.config.uv_tiling
-                    v = (gy / max(1, sample_h - 1)) * self.config.uv_tiling
+                    u = (gx / max(1, sample_w - 1)) * uv_tiling
+                    v = (gy / max(1, sample_h - 1)) * uv_tiling
                 uv.addData2(u, v)
 
         tris = GeomTriangles(Geom.UHStatic)
-        for y in range(sample_h - 1):
-            for x in range(sample_w - 1):
-                i0 = y * sample_w + x
+        for gy in range(y_start, y_end):
+            local_y = gy - y_start
+            for gx in range(x_start, x_end):
+                local_x = gx - x_start
+                i0 = local_y * tile_w + local_x
                 i1 = i0 + 1
-                i2 = i0 + sample_w
+                i2 = i0 + tile_w
                 i3 = i2 + 1
-
                 tris.addVertices(i0, i1, i2)
                 tris.addVertices(i1, i3, i2)
         tris.closePrimitive()
@@ -148,19 +209,9 @@ class RuntimeTerrain:
         geom = Geom(vdata)
         geom.addPrimitive(tris)
 
-        node = GeomNode("terrain_mesh")
+        node = GeomNode(f"terrain_tile_{tile_index:03d}")
         node.addGeom(geom)
-
-        terrain_np = parent.attachNewNode(node)
-        terrain_np.setTwoSided(False)
-        if not self.config.use_procedural_texture:
-            self._apply_texture(terrain_np)
-
-        # Add a high-frequency detail layer in a separate texture stage.
-        # This improves perceived sharpness even when using vertex colors.
-        if bool(self.config.enable_detail_texture):
-            self._apply_detail_texture(terrain_np)
-        return terrain_np
+        return parent.attachNewNode(node)
 
     def _apply_detail_texture(self, terrain_np: NodePath) -> None:
         """Apply a small, tileable detail texture to reduce blurry/flat visuals."""

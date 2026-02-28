@@ -4,6 +4,7 @@
 """
 import math
 from .base_system import SystemBase
+from .update_context import SystemUpdateContext
 from ..data.vehicle_state import VehicleState
 from ..data.wheel_state import WheelsState, WheelState
 from ..data.vehicle_state import Vector3
@@ -35,9 +36,13 @@ class WheelSystem(SystemBase):
         else:
             self.steering_speed_curve = [(0, 1.0), (60, 0.8), (120, 0.6)]
     
-    def update(self, dt: float, vehicle_state: VehicleState, 
-               wheels_state: WheelsState) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """更新车轮系统"""
+        dt = ctx.dt
+        vehicle_state = ctx.vehicle_state
+        wheels_state = ctx.wheels_state
+        if wheels_state is None:
+            return
         for i, wheel_config in enumerate(self.wheel_configs):
             if i < len(wheels_state.wheels):
                 self._update_wheel(dt, vehicle_state, wheel_config, wheels_state.wheels[i])

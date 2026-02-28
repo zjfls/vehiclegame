@@ -4,9 +4,9 @@
 """
 import math
 from .base_system import SystemBase
+from .update_context import SystemUpdateContext
+from ..data.suspension_state import WheelSuspensionState
 from ..data.vehicle_state import VehicleState
-from ..data.suspension_state import SuspensionState, WheelSuspensionState
-from ..data.wheel_state import WheelsState
 from ..data.vehicle_state import Vector3
 
 class SuspensionSystem(SystemBase):
@@ -78,9 +78,20 @@ class SuspensionSystem(SystemBase):
         
         return sprung_masses
     
-    def update(self, dt: float, vehicle_state: VehicleState, 
-               wheels_state: WheelsState, suspension_state: SuspensionState) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """更新悬挂系统"""
+        dt = ctx.dt
+        vehicle_state = ctx.vehicle_state
+        wheels_state = ctx.wheels_state
+        suspension_state = ctx.suspension_state
+        
+        # Future: Query terrain height/normal for ground contact
+        # if ctx.terrain is not None:
+        #     ground_height = ctx.terrain.sample_height(vehicle_state.position.x, vehicle_state.position.y)
+        #     ground_normal = ctx.terrain.sample_normal(vehicle_state.position.x, vehicle_state.position.y)
+        
+        if wheels_state is None or suspension_state is None:
+            return
         for i, config in enumerate(self.wheel_configs):
             if i < len(suspension_state.wheels) and i < len(self.sprung_masses):
                 self._update_wheel_suspension(
@@ -143,4 +154,6 @@ class SuspensionSystem(SystemBase):
         suspension_state.wheel_offset = Vector3(0, 0, -total_compression)
         
         # 12. 判断是否悬空
-        suspension_state.is_in_air = abs(total_compression) >= max_compression * 0.99
+        # compression > 0 means the suspension is compressed (wheel is pushing into the body).
+        # Going "in air" should correspond to reaching max droop / extension.
+        suspension_state.is_in_air = total_compression <= -max_droop * 0.99

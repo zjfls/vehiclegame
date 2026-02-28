@@ -2,6 +2,7 @@
 车辆实体 - 业务层
 协调各个子系统，管理车辆的生命周期
 """
+import math
 from typing import Optional
 from ..data.vehicle_state import VehicleState, VehicleControlInput, Vector3
 from ..data.suspension_state import SuspensionState, WheelSuspensionState
@@ -9,6 +10,7 @@ from ..data.pose_state import PoseState
 from ..data.wheel_state import WheelsState
 from ..data.tire_state import TiresState, TireState
 from ..data.transmission_state import TransmissionState
+from ..systems.update_context import SystemUpdateContext
 
 class VehicleEntity:
     """
@@ -34,6 +36,9 @@ class VehicleEntity:
         
         # 控制输入
         self.current_input = VehicleControlInput()
+        
+        # Terrain query interface (set by game layer)
+        self.terrain = None
         
         # 子系统
         self._systems = {}
@@ -67,6 +72,30 @@ class VehicleEntity:
         """注册子系统"""
         self._systems[name] = system
     
+    def unregister_system(self, name: str):
+        """注销子系统（会自动调用 shutdown）"""
+        system = self._systems.pop(name, None)
+        if system is not None:
+            try:
+                system.shutdown()
+            except Exception:
+                pass
+    
+    def initialize_systems(self):
+        """初始化所有已注册的子系统"""
+        for name, system in self._systems.items():
+            if hasattr(system, 'initialize'):
+                system.initialize()
+    
+    def shutdown_systems(self):
+        """关闭所有子系统"""
+        for name, system in self._systems.items():
+            if hasattr(system, 'shutdown'):
+                try:
+                    system.shutdown()
+                except Exception:
+                    pass
+    
     def get_system(self, name: str):
         """获取子系统"""
         return self._systems.get(name)
@@ -84,15 +113,35 @@ class VehicleEntity:
         6. PoseSystem - 计算姿态
         7. AnimationSystem - 驱动动画
         """
-        # 1. 物理系统
+        tires_system = self.get_system('tires')
+        use_tire_forces = bool(tires_system)
+
+        # Build a single context object so systems can share a stable interface.
+        ctx = SystemUpdateContext(
+            dt=dt,
+            vehicle_state=self.state,
+            control_input=self.current_input,
+            transmission_state=self.transmission_state,
+            wheels_state=self.wheels_state,
+            suspension_state=self.suspension_state,
+            tires_state=self.tire_states,
+            pose_state=self.pose_state,
+            use_tire_forces=use_tire_forces,
+            terrain=self.terrain,
+        )
+
         physics = self.get_system('physics')
+
+        # 1. 物理系统
+        # If ctx.use_tire_forces is True, PhysicsSystem will only do input
+        # smoothing + steering, and skip its simple speed/position integration.
         if physics:
-            physics.update(dt, self.current_input, self.state)
+            physics.update(ctx)
         
         # 2. 传动系统
         transmission = self.get_system('transmission')
         if transmission:
-            transmission.update(dt, self.state, self.current_input, self.transmission_state)
+            transmission.update(ctx)
             self.state.engine_rpm = self.transmission_state.engine_rpm
             for i, torque in enumerate(self.transmission_state.wheel_torques):
                 if i < len(self.wheels_state.wheels):
@@ -101,33 +150,173 @@ class VehicleEntity:
         # 3. 车轮系统
         wheels = self.get_system('wheels')
         if wheels:
-            wheels.update(dt, self.state, self.wheels_state)
+            wheels.update(ctx)
         
         # 4. 悬挂系统
         suspension = self.get_system('suspension')
         if suspension:
-            suspension.update(dt, self.state, self.wheels_state, self.suspension_state)
+            suspension.update(ctx)
         
         # 5. 轮胎系统
-        tires = self.get_system('tires')
-        if tires:
-            tires.update(dt, self.state, self.wheels_state, self.suspension_state, self.tire_states)
-            self._apply_tire_forces()
+        if tires_system:
+            tires_system.update(ctx)
+            self._apply_tire_forces(dt, integrate_position=True)
         
         # 6. 姿态系统
         pose = self.get_system('pose')
         if pose:
-            pose.update(dt, self.state, self.suspension_state, self.pose_state)
+            pose.update(ctx)
         
         # 7. 动画系统
         animation = self.get_system('animation')
         if animation:
-            animation.update(dt, self.state, self.pose_state, self.suspension_state, self.wheels_state)
+            animation.update(ctx)
     
-    def _apply_tire_forces(self):
-        """将轮胎力应用到车辆运动"""
-        total_long_force = sum(t.long_force for t in self.tire_states.tires)
-        # 简化处理，实际应该更复杂
+    def _get_vehicle_mass_kg(self) -> float:
+        cfg = self.config if isinstance(self.config, dict) else {}
+
+        # Most examples use config['physics']['mass'].
+        physics = cfg.get('physics', {}) if isinstance(cfg.get('physics', {}), dict) else {}
+        mass = physics.get('mass') or physics.get('mass_kg')
+
+        # Newer configs use config['chassis']['mass_kg'].
+        chassis = cfg.get('chassis', {}) if isinstance(cfg.get('chassis', {}), dict) else {}
+        mass = mass or chassis.get('mass_kg')
+
+        mass = mass or cfg.get('mass')
+
+        try:
+            m = float(mass)
+            return m if m > 1.0 else 1500.0
+        except Exception:
+            return 1500.0
+
+    def _get_max_speed_kmh(self) -> float:
+        cfg = self.config if isinstance(self.config, dict) else {}
+
+        physics = cfg.get('physics', {}) if isinstance(cfg.get('physics', {}), dict) else {}
+        max_speed = physics.get('max_speed') or physics.get('max_speed_kmh')
+
+        simple = cfg.get('simple_physics', {}) if isinstance(cfg.get('simple_physics', {}), dict) else {}
+        max_speed = max_speed or simple.get('max_speed_kmh')
+
+        try:
+            v = float(max_speed)
+            return v if v > 0 else 0.0
+        except Exception:
+            return 0.0
+
+    def _get_physics_params(self) -> dict:
+        cfg = self.config if isinstance(self.config, dict) else {}
+        physics = cfg.get('physics', {}) if isinstance(cfg.get('physics', {}), dict) else {}
+
+        def f(key: str, default: float) -> float:
+            try:
+                return float(physics.get(key, default))
+            except Exception:
+                return float(default)
+
+        return {
+            'deceleration_kmhps': f('deceleration', 30.0),
+            'brake_deceleration_kmhps': f('brake_deceleration', 80.0),
+            'drag_coefficient': f('drag_coefficient', 0.3),
+        }
+
+    def _apply_tire_forces(self, dt: float, *, integrate_position: bool) -> None:
+        """Apply computed tire forces to the vehicle's kinematic state.
+
+        The current PhysicsSystem provides a simple baseline movement model.
+        TireSystem computes forces in Newtons; without applying them here, that
+        information never affects vehicle motion.
+        """
+
+        if dt <= 0:
+            return
+
+        tires = self.tire_states.tires or []
+        if not tires:
+            return
+
+        total_long_force_n = float(sum(t.long_force for t in tires))
+        total_lat_force_n = float(sum(t.lat_force for t in tires))
+
+        mass_kg = self._get_vehicle_mass_kg()
+        if mass_kg <= 1.0:
+            return
+
+        # Accelerations in m/s^2.
+        long_accel_ms2 = total_long_force_n / mass_kg
+        lat_accel_ms2 = total_lat_force_n / mass_kg
+
+        params = self._get_physics_params()
+
+        # Integrate longitudinal acceleration into scalar speed (km/h).
+        # Keep basic resistances/braking so the vehicle remains controllable.
+        speed_before_kmh = float(self.state.speed)
+        speed_kmh = speed_before_kmh
+
+        tire_accel_kmhps = long_accel_ms2 * 3.6
+        extra_accel_kmhps = 0.0
+
+        brake = float(getattr(self.state, 'brake', 0.0) or 0.0)
+        throttle = float(getattr(self.state, 'throttle', 0.0) or 0.0)
+        handbrake = bool(getattr(self.current_input, 'handbrake', False))
+
+        if brake > 0.0:
+            extra_accel_kmhps -= float(params['brake_deceleration_kmhps']) * max(0.0, min(1.0, brake))
+        elif handbrake:
+            extra_accel_kmhps -= float(params['brake_deceleration_kmhps']) * 0.8
+        elif throttle <= 0.0:
+            decel = float(params['deceleration_kmhps'])
+            if speed_kmh > 0.0:
+                extra_accel_kmhps -= decel * 0.3
+            elif speed_kmh < 0.0:
+                extra_accel_kmhps += decel * 0.3
+
+        drag = 0.5 * float(params['drag_coefficient']) * speed_kmh * abs(speed_kmh) / 1000.0
+        extra_accel_kmhps -= float(drag)
+
+        self.state.speed = speed_before_kmh + (tire_accel_kmhps + extra_accel_kmhps) * dt
+
+        # Avoid unintended "reverse" when braking or coasting down to ~0.
+        # Reverse gear is not modeled yet, so crossing zero is usually a bug.
+        if throttle <= 0.0:
+            if speed_before_kmh >= 0.0 and self.state.speed < 0.0:
+                self.state.speed = 0.0
+            elif speed_before_kmh <= 0.0 and self.state.speed > 0.0:
+                self.state.speed = 0.0
+
+        # Keep speed within a reasonable range if a max speed is known.
+        max_speed_kmh = self._get_max_speed_kmh()
+        if max_speed_kmh > 0:
+            self.state.speed = max(-max_speed_kmh * 0.5, min(max_speed_kmh, self.state.speed))
+
+        heading_rad = math.radians(float(self.state.heading))
+        fx = math.sin(heading_rad)
+        fy = math.cos(heading_rad)
+
+        if integrate_position:
+            speed_ms = float(self.state.speed) / 3.6
+            self.state.position.x += fx * speed_ms * dt
+            self.state.position.y += fy * speed_ms * dt
+
+        # Publish velocity/acceleration for downstream systems/UI.
+        speed_ms = float(self.state.speed) / 3.6
+        self.state.velocity.x = fx * speed_ms
+        self.state.velocity.y = fy * speed_ms
+        self.state.velocity.z = 0.0
+
+        # World accel from vehicle-forward (fx,fy) and vehicle-right (-fy,fx).
+        net_long_accel_ms2 = (float(self.state.speed) - speed_before_kmh) / max(1e-6, dt) / 3.6
+        self.state.acceleration.x = fx * net_long_accel_ms2 - fy * lat_accel_ms2
+        self.state.acceleration.y = fy * net_long_accel_ms2 + fx * lat_accel_ms2
+        self.state.acceleration.z = 0.0
+
+        # Keep wheel linear velocities roughly consistent.
+        for w in (self.wheels_state.wheels or []):
+            w.linear_velocity.x = self.state.velocity.x
+            w.linear_velocity.y = self.state.velocity.y
+            w.linear_velocity.z = self.state.velocity.z
     
     # ========== 状态获取接口 ==========
     

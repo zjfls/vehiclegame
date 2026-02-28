@@ -4,8 +4,8 @@
 """
 import math
 from .base_system import SystemBase
-from ..data.vehicle_state import VehicleState, VehicleControlInput
-from ..data.transmission_state import TransmissionState, EngineConfig, DifferentialConfig
+from .update_context import SystemUpdateContext
+from ..data.transmission_state import EngineConfig, DifferentialConfig
 
 class TransmissionSystem(SystemBase):
     """传动系统"""
@@ -33,9 +33,15 @@ class TransmissionSystem(SystemBase):
         # 离合器
         self.clutch_strength = config.get('clutch_strength', 10.0) if config else 10.0
     
-    def update(self, dt: float, vehicle_state: VehicleState,
-               control_input: VehicleControlInput, transmission_state: TransmissionState) -> None:
+    def update(self, ctx: SystemUpdateContext) -> None:
         """更新传动系统"""
+
+        dt = ctx.dt
+        vehicle_state = ctx.vehicle_state
+        control_input = ctx.control_input
+        transmission_state = ctx.transmission_state
+        if control_input is None or transmission_state is None:
+            return
         
         # 1. 处理换档
         if transmission_state.is_shifting:
@@ -48,6 +54,11 @@ class TransmissionSystem(SystemBase):
         
         # 2. 计算发动机扭矩
         engine_torque = self._get_engine_torque(transmission_state.engine_rpm)
+
+        # Map driver throttle to produced torque (simplified).
+        throttle = float(getattr(control_input, "throttle", 0.0) or 0.0)
+        throttle = max(0.0, min(1.0, throttle))
+        engine_torque *= throttle
         
         # 3. 应用离合器
         clutch_factor = 1.0 - transmission_state.clutch_position
